@@ -969,6 +969,8 @@ const QUESTIONS_BIN_ID_2="6a420c3af5f4af5e293fdacc"; // questions shard 2
 const QUESTIONS_BIN_ID_3="6a470e39f5f4af5e295738df"; // questions shard 3
 const EXTRA_BIN_ID="6a445241da38895dfe18b9f2";     // schedules, gallery, videos, guestApplications, mediaPartners, sponsors, siteContent
 const MASTER_KEY="$2a$10$VM15AZotifF2wcXou8VdceFnUd7te9hDc3wHD1gD8IPtKR8PGVHqm";
+// Shard 2 & 3 bins live in a different JSONBin account, so they need their own key.
+const MASTER_KEY_2="$2a$10$fEi2jZ47VxnreDHYK/N0p.EaCtczgFdc30kBdb.VwVp3mYRkZ8GCu";
 const BIN_URL="https://api.jsonbin.io/v3/b/"+BIN_ID;
 const QUESTIONS_BIN_URL="https://api.jsonbin.io/v3/b/"+QUESTIONS_BIN_ID;
 const QUESTIONS_BIN_URL_2="https://api.jsonbin.io/v3/b/"+QUESTIONS_BIN_ID_2;
@@ -1028,8 +1030,8 @@ function questionShard(guestName){
   return h%3;
 }
 
-async function fetchBin(url, label){
-  const res = await fetch(url+"/latest", {headers:{"X-Master-Key":MASTER_KEY}, cache:"no-store"});
+async function fetchBin(url, label, key){
+  const res = await fetch(url+"/latest", {headers:{"X-Master-Key":key||MASTER_KEY}, cache:"no-store"});
   if(!res.ok){
     const errText = await res.text().catch(()=> "");
     throw new Error(label+" bin HTTP "+res.status+": "+errText);
@@ -1042,8 +1044,8 @@ async function loadDB(){
     const [core, q1, q2, q3, extra] = await Promise.all([
       fetchBin(BIN_URL, "core"),
       fetchBin(QUESTIONS_BIN_URL, "questions shard 1"),
-      fetchBin(QUESTIONS_BIN_URL_2, "questions shard 2"),
-      fetchBin(QUESTIONS_BIN_URL_3, "questions shard 3"),
+      fetchBin(QUESTIONS_BIN_URL_2, "questions shard 2", MASTER_KEY_2),
+      fetchBin(QUESTIONS_BIN_URL_3, "questions shard 3", MASTER_KEY_2),
       fetchBin(EXTRA_BIN_URL, "extra")
     ]);
     const allQuestions = [].concat(q1.questions||[], q2.questions||[], q3.questions||[]);
@@ -1068,11 +1070,11 @@ async function loadDB(){
     return false;
   }
 }
-async function putBin(url, payload, label, failures){
+async function putBin(url, payload, label, failures, key){
   try{
     const res = await fetch(url, {
       method:"PUT",
-      headers:{"Content-Type":"application/json","X-Master-Key":MASTER_KEY},
+      headers:{"Content-Type":"application/json","X-Master-Key":key||MASTER_KEY},
       body: JSON.stringify(payload)
     });
     if(!res.ok){
@@ -1103,8 +1105,8 @@ async function saveDB(){
   await Promise.all([
     putBin(BIN_URL, core, "core", failures),
     putBin(QUESTIONS_BIN_URL, questions1, "questions shard 1", failures),
-    putBin(QUESTIONS_BIN_URL_2, questions2, "questions shard 2", failures),
-    putBin(QUESTIONS_BIN_URL_3, questions3, "questions shard 3", failures),
+    putBin(QUESTIONS_BIN_URL_2, questions2, "questions shard 2", failures, MASTER_KEY_2),
+    putBin(QUESTIONS_BIN_URL_3, questions3, "questions shard 3", failures, MASTER_KEY_2),
     putBin(EXTRA_BIN_URL, extra, "extra", failures)
   ]);
   if(failures.length){
