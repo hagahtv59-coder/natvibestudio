@@ -285,6 +285,7 @@ footer{background:#0D0105;padding:3.5rem 3rem 1.5rem;border-top:2px solid var(--
     <button onclick="openPortal('guest')" style="background:rgba(212,175,55,0.15);border:1px solid rgba(212,175,55,0.4);color:var(--gold);padding:6px 14px;font-family:'Barlow Condensed',sans-serif;font-size:0.75rem;font-weight:900;letter-spacing:1px;text-transform:uppercase;cursor:pointer;border-radius:2px;transition:all .2s;" onmouseover="this.style.background='rgba(212,175,55,0.25)'" onmouseout="this.style.background='rgba(212,175,55,0.15)'">&#127942; Guest Portal</button>
     <button onclick="openPortal('admin')" style="background:rgba(46,155,255,0.15);border:1px solid rgba(46,155,255,0.4);color:#9CD2FF;padding:6px 14px;font-family:'Barlow Condensed',sans-serif;font-size:0.75rem;font-weight:900;letter-spacing:1px;text-transform:uppercase;cursor:pointer;border-radius:2px;transition:all .2s;" onmouseover="this.style.background='rgba(46,155,255,0.3)'" onmouseout="this.style.background='rgba(46,155,255,0.15)'">&#128274; Admin</button>
     <button onclick="openPortal('team')" style="background:rgba(155,89,255,0.15);border:1px solid rgba(155,89,255,0.4);color:#C9A8FF;padding:6px 14px;font-family:'Barlow Condensed',sans-serif;font-size:0.75rem;font-weight:900;letter-spacing:1px;text-transform:uppercase;cursor:pointer;border-radius:2px;transition:all .2s;" onmouseover="this.style.background='rgba(155,89,255,0.3)'" onmouseout="this.style.background='rgba(155,89,255,0.15)'">&#129309; Team Vibe</button>
+    <button onclick="openCheckin()" style="background:rgba(61,184,113,0.15);border:1px solid rgba(61,184,113,0.4);color:#7FE0A8;padding:6px 14px;font-family:'Barlow Condensed',sans-serif;font-size:0.75rem;font-weight:900;letter-spacing:1px;text-transform:uppercase;cursor:pointer;border-radius:2px;transition:all .2s;" onmouseover="this.style.background='rgba(61,184,113,0.3)'" onmouseout="this.style.background='rgba(61,184,113,0.15)'">&#9989; Check In</button>
   </div>
 </nav>
 
@@ -692,6 +693,7 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
         <div class="adm-tab" onclick="switchAdmTab('adm-cfg')">&#128221; Call for Guest <span id="cfgPendingBadge" style="display:none;background:var(--red);color:#fff;border-radius:10px;padding:1px 7px;font-size:0.6rem;margin-left:4px;">0</span></div>
         <div class="adm-tab" onclick="switchAdmTab('adm-site')">&#9881; Site Content</div>
         <div class="adm-tab" onclick="switchAdmTab('adm-team')">&#129309; Team Vibe <span id="teamPendingBadge" style="display:none;background:var(--red);color:#fff;border-radius:10px;padding:1px 7px;font-size:0.6rem;margin-left:4px;">0</span></div>
+        <div class="adm-tab" onclick="switchAdmTab('adm-checkin')">&#9989; Check-Ins</div>
       </div>
       <!-- ADD -->
       <div class="adm-tc active" id="adm-add">
@@ -900,6 +902,18 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
         </div>
         <div class="adm-q-list" id="admTeamList"></div>
       </div>
+      <div class="adm-tc" id="adm-checkin">
+        <div style="background:rgba(61,184,113,0.06);border:1px solid rgba(61,184,113,0.25);border-radius:4px;padding:1.2rem;margin-bottom:1.5rem;text-align:center;">
+          <label class="adm-label" style="display:block;margin-bottom:0.8rem;">Guest Check-In QR Code</label>
+          <img id="checkinQrImg" src="" alt="Check-in QR code" style="width:200px;height:200px;background:#fff;padding:8px;border-radius:4px;"/>
+          <div style="margin-top:0.8rem;">
+            <a id="checkinQrLink" href="#" style="color:#7FE0A8;font-size:0.8rem;text-decoration:underline;">&#8681; Download QR Code (for printing)</a>
+          </div>
+          <div style="margin-top:0.6rem;font-size:0.7rem;color:var(--muted);word-break:break-all;">Links to: <span id="checkinUrlText"></span></div>
+          <div style="margin-top:0.6rem;font-size:0.75rem;color:var(--muted);">Guests scan this at the venue, type their name &amp; phone, and you get a Telegram alert instantly.</div>
+        </div>
+        <div class="adm-q-list" id="admCheckinList"></div>
+      </div>
     </div>
   </div>
 
@@ -1018,7 +1032,7 @@ const GUESTS=[
   {n:"Gabriel Owusu",r:"L/CPL | Africa Silver Medalist | Ambassador"}
 ];
 
-let DB = {questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[]};
+let DB = {questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[]};
 
 // Spreads questions across 3 JSONBin bins (each capped at 100kb on the free plan)
 // so a single guest list can hold much more data before hitting the limit.
@@ -1063,6 +1077,7 @@ async function loadDB(){
     if(!DB.sponsors) DB.sponsors=[];
     if(!DB.siteContent) DB.siteContent={};
     if(!DB.teamMembers) DB.teamMembers=[];
+    if(!DB.checkins) DB.checkins=[];
     return true;
   }catch(e){
     console.error("loadDB error",e);
@@ -1099,7 +1114,7 @@ async function saveDB(){
   const extra = {
     schedules: DB.schedules||{}, gallery: DB.gallery||[], videos: DB.videos||[],
     guestApplications: DB.guestApplications||[], mediaPartners: DB.mediaPartners||[],
-    sponsors: DB.sponsors||[], siteContent: DB.siteContent||{}, teamMembers: DB.teamMembers||[]
+    sponsors: DB.sponsors||[], siteContent: DB.siteContent||{}, teamMembers: DB.teamMembers||[], checkins: DB.checkins||[]
   };
   const failures=[];
   await Promise.all([
@@ -1435,7 +1450,7 @@ async function saveEditQuestion(){
   setTimeout(()=>{ closeEditQuestion(); switchAdmTab('adm-view'); },900);
 }
 function switchAdmTab(id){
-  document.querySelectorAll('.adm-tab').forEach((t,i)=>t.classList.toggle('active',['adm-add','adm-view','adm-guests','adm-schedule','adm-media','adm-cfg','adm-site','adm-team'][i]===id));
+  document.querySelectorAll('.adm-tab').forEach((t,i)=>t.classList.toggle('active',['adm-add','adm-view','adm-guests','adm-schedule','adm-media','adm-cfg','adm-site','adm-team','adm-checkin'][i]===id));
   document.querySelectorAll('.adm-tc').forEach(t=>t.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   if(id==='adm-view')renderAdminQ();
@@ -1445,6 +1460,7 @@ function switchAdmTab(id){
   if(id==='adm-cfg'){renderAdminApplications();}
   if(id==='adm-site'){loadSiteContentFields();renderAdminMediaPartners();renderAdminSponsors();}
   if(id==='adm-team'){renderAdminTeam();}
+  if(id==='adm-checkin'){renderAdminCheckins();}
 }
 function updateAdmStats(){
   document.getElementById('admStatQ').textContent=(DB.questions||[]).length;
@@ -1689,6 +1705,76 @@ async function submitBooking(){
   document.getElementById('bookSuccess').style.display='block';
   btn.disabled=false; btn.textContent=orig;
   setTimeout(()=>closeBooking(),2000);
+}
+
+/* ===== GUEST CHECK-IN (QR CODE) ===== */
+function checkinUrl(){
+  return window.location.origin + window.location.pathname + '?checkin=1';
+}
+function openCheckin(){
+  document.getElementById('checkinName').value='';
+  document.getElementById('checkinPhone').value='';
+  document.getElementById('checkinErr').style.display='none';
+  document.getElementById('checkinSuccess').style.display='none';
+  document.getElementById('checkinOverlay').classList.add('open');
+}
+function closeCheckin(){
+  document.getElementById('checkinOverlay').classList.remove('open');
+  // Clean the ?checkin=1 param out of the URL so refreshing doesn't reopen it
+  if(window.location.search.includes('checkin')){
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+}
+async function submitCheckin(){
+  const name=document.getElementById('checkinName').value.trim();
+  const phone=document.getElementById('checkinPhone').value.trim();
+  const errEl=document.getElementById('checkinErr');
+  errEl.style.display='none';
+  if(!name||!phone){errEl.style.display='block';return;}
+  const btn=event.target; btn.disabled=true; const orig=btn.textContent; btn.textContent='Checking in...';
+  try{
+    await loadDB();
+    if(!DB.checkins) DB.checkins=[];
+    DB.checkins.push({id:Date.now(), name, phone, time:new Date().toISOString()});
+    await saveDB();
+    await sendTG('✅ NAT-VIBE STUDIO — GUEST CHECK-IN\n\n👤 Name: '+name+'\n📞 Phone: '+phone+'\n📅 '+new Date().toLocaleString());
+    document.getElementById('checkinSuccess').style.display='block';
+    setTimeout(()=>closeCheckin(),2200);
+  }catch(e){
+    errEl.textContent='Something went wrong. Please try again.';
+    errEl.style.display='block';
+  }
+  btn.disabled=false; btn.textContent=orig;
+}
+function renderAdminCheckins(){
+  const list=document.getElementById('admCheckinList');
+  if(!list) return;
+  const qrImg=document.getElementById('checkinQrImg');
+  const qrLink=document.getElementById('checkinQrLink');
+  if(qrImg){
+    const url=checkinUrl();
+    qrImg.src='https://api.qrserver.com/v1/create-qr-code/?size=280x280&data='+encodeURIComponent(url);
+    qrLink.href=qrImg.src;
+    qrLink.download='natvibestudio-checkin-qr.png';
+    document.getElementById('checkinUrlText').textContent=url;
+  }
+  const entries=(DB.checkins||[]).slice().sort((a,b)=>b.id-a.id);
+  if(!entries.length){list.innerHTML='<div style="color:var(--muted);padding:1.5rem;text-align:center;font-size:0.85rem;">No check-ins yet.</div>';return;}
+  list.innerHTML='<div style="color:var(--muted);font-size:0.8rem;margin-bottom:0.8rem;">Total checked in: <strong style="color:var(--white);">'+entries.length+'</strong></div>'+
+    entries.map(c=>`<div class="adm-q-item">
+      <div style="flex:1;">
+        <div class="adm-q-txt" style="font-weight:700;">${c.name}</div>
+        <div class="adm-q-gst">${c.phone} &middot; ${new Date(c.time||c.id).toLocaleString()}</div>
+      </div>
+      <button class="adm-del" onclick="deleteCheckin(${c.id})">&#128465; Delete</button>
+    </div>`).join('');
+}
+async function deleteCheckin(id){
+  if(!confirm('Delete this check-in record?'))return;
+  await loadDB();
+  DB.checkins=(DB.checkins||[]).filter(c=>c.id!==id);
+  await saveDB();
+  renderAdminCheckins();
 }
 
 
@@ -2230,6 +2316,9 @@ function closeSitePopup(id){
 }
 window.addEventListener('DOMContentLoaded', ()=>{
   document.getElementById('siteSupportPopup').classList.add('open');
+  if(new URLSearchParams(window.location.search).get('checkin')==='1'){
+    openCheckin();
+  }
 });
 
 
@@ -2262,6 +2351,19 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closePortal();});
     <button class="pm-btn gold" onclick="submitBooking()">Submit Booking Request</button>
     <div class="bm-success" id="bookSuccess">&#10003; Booking request sent! We'll contact you soon.</div>
     <div style="text-align:center;margin-top:1rem;"><a onclick="closeBooking()" style="color:var(--muted);font-size:0.78rem;cursor:pointer;">Cancel</a></div>
+  </div>
+</div>
+
+<!-- GUEST CHECK-IN MODAL (via QR code scan) -->
+<div class="site-popup-overlay" id="checkinOverlay" onclick="if(event.target===this)closeCheckin()">
+  <div class="book-modal-box">
+    <h3 style="color:#7FE0A8;">&#9989; Event Check-In</h3>
+    <div class="bm-guest">Welcome! Please enter your details to confirm you're here for the <strong>Longest Interview Marathon</strong>.</div>
+    <input type="text" class="pm-inp" id="checkinName" placeholder="Your Full Name"/>
+    <input type="tel" class="pm-inp" id="checkinPhone" placeholder="Your Phone Number"/>
+    <button class="pm-btn" style="background:#3DB871;border-color:#3DB871;" onclick="submitCheckin()">Check In Now</button>
+    <div class="pm-err" id="checkinErr">Please enter your name and phone number.</div>
+    <div class="bm-success" id="checkinSuccess">&#10003; You're checked in! Thanks for coming.</div>
   </div>
 </div>
 </body>
