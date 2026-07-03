@@ -1078,6 +1078,13 @@ async function loadDB(){
     if(!DB.siteContent) DB.siteContent={};
     if(!DB.teamMembers) DB.teamMembers=[];
     if(!DB.checkins) DB.checkins=[];
+    DB.checkins = DB.checkins.map(c=>{
+      if(c.timeIn) return c;
+      const t = c.time || new Date(c.id).toISOString();
+      const d = new Date(t);
+      const dateStr = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+      return Object.assign({}, c, {timeIn:t, timeOut:c.timeOut||null, date:c.date||dateStr});
+    });
     return true;
   }catch(e){
     console.error("loadDB error",e);
@@ -1707,16 +1714,61 @@ async function submitBooking(){
   setTimeout(()=>closeBooking(),2000);
 }
 
-/* ===== GUEST CHECK-IN (QR CODE) ===== */
+/* ===== GUEST CHECK-IN LOG BOOK (QR CODE + PASSWORD) ===== */
+const CHECKIN_PASS="NATVIBE";
+let checkinAuthed=false;
 function checkinUrl(){
   return window.location.origin + window.location.pathname + '?checkin=1';
 }
+function todayStr(){
+  const d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function toTimeInputValue(iso){
+  if(!iso) return '';
+  const d=new Date(iso);
+  return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+}
+function combineDateTime(dateStr, timeStr){
+  if(!timeStr) return null;
+  const [y,m,d]=(dateStr||todayStr()).split('-').map(Number);
+  const [hh,mm]=timeStr.split(':').map(Number);
+  return new Date(y, m-1, d, hh, mm, 0).toISOString();
+}
+function fmtDateTime(iso){
+  if(!iso) return '—';
+  const d=new Date(iso);
+  return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+' · '+d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
+}
 function openCheckin(){
+  document.getElementById('checkinPassInp').value='';
+  document.getElementById('checkinPassErr').style.display='none';
+  document.getElementById('checkinOverlay').classList.add('open');
+  if(checkinAuthed){ showCheckinStage2(); } else { showCheckinStage1(); }
+}
+function showCheckinStage1(){
+  document.getElementById('checkinStage1').style.display='block';
+  document.getElementById('checkinStage2').style.display='none';
+}
+async function showCheckinStage2(){
+  document.getElementById('checkinStage1').style.display='none';
+  document.getElementById('checkinStage2').style.display='block';
   document.getElementById('checkinName').value='';
   document.getElementById('checkinPhone').value='';
   document.getElementById('checkinErr').style.display='none';
   document.getElementById('checkinSuccess').style.display='none';
-  document.getElementById('checkinOverlay').classList.add('open');
+  document.getElementById('checkinManageList').innerHTML='<div style="color:var(--muted);font-size:0.8rem;padding:0.8rem 0;">Loading...</div>';
+  await loadDB();
+  renderCheckinManageList();
+}
+function checkinLogin(){
+  const val=document.getElementById('checkinPassInp').value.trim();
+  if(val===CHECKIN_PASS){
+    checkinAuthed=true;
+    showCheckinStage2();
+  }else{
+    document.getElementById('checkinPassErr').style.display='block';
+  }
 }
 function closeCheckin(){
   document.getElementById('checkinOverlay').classList.remove('open');
@@ -1729,22 +1781,72 @@ async function submitCheckin(){
   const name=document.getElementById('checkinName').value.trim();
   const phone=document.getElementById('checkinPhone').value.trim();
   const errEl=document.getElementById('checkinErr');
-  errEl.style.display='none';
+  const okEl=document.getElementById('checkinSuccess');
+  errEl.style.display='none'; okEl.style.display='none';
   if(!name||!phone){errEl.style.display='block';return;}
   const btn=event.target; btn.disabled=true; const orig=btn.textContent; btn.textContent='Checking in...';
   try{
     await loadDB();
     if(!DB.checkins) DB.checkins=[];
-    DB.checkins.push({id:Date.now(), name, phone, time:new Date().toISOString()});
-    await saveDB();
-    await sendTG('✅ NAT-VIBE STUDIO — GUEST CHECK-IN\n\n👤 Name: '+name+'\n📞 Phone: '+phone+'\n📅 '+new Date().toLocaleString());
-    document.getElementById('checkinSuccess').style.display='block';
-    setTimeout(()=>closeCheckin(),2200);
+    const nowIso=new Date().toISOString();
+    DB.checkins.push({id:Date.now(), name, phone, date:todayStr(), timeIn:nowIso, timeOut:null});
+    const saved=await saveDB();
+    if(!saved){ btn.disabled=false; btn.textContent=orig; return; }
+    await sendTG('✅ NAT-VIBE STUDIO — CHECK-IN (Time In)\n\n👤 Name: '+name+'\n📞 Phone: '+phone+'\n📅 '+new Date().toLocaleString());
+    okEl.textContent='✓ Checked in at '+new Date(nowIso).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})+'. Come back here later to record your time out.';
+    okEl.style.display='block';
+    document.getElementById('checkinName').value='';
+    document.getElementById('checkinPhone').value='';
+    renderCheckinManageList();
   }catch(e){
     errEl.textContent='Something went wrong. Please try again.';
     errEl.style.display='block';
   }
   btn.disabled=false; btn.textContent=orig;
+}
+function renderCheckinManageList(){
+  const list=document.getElementById('checkinManageList');
+  if(!list) return;
+  const entries=(DB.checkins||[]).slice().sort((a,b)=>new Date(b.timeIn||b.time||b.id)-new Date(a.timeIn||a.time||a.id));
+  if(!entries.length){list.innerHTML='<div style="color:var(--muted);font-size:0.8rem;padding:0.8rem 0;">No check-ins yet.</div>';return;}
+  list.innerHTML=entries.map(c=>`<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-left:3px solid #3DB871;padding:0.7rem 0.9rem;border-radius:0 3px 3px 0;margin-bottom:0.6rem;">
+    <div style="font-weight:700;font-size:0.85rem;color:var(--white);">${c.name}</div>
+    <div style="font-size:0.7rem;color:var(--muted);margin-bottom:0.5rem;">${c.phone} &middot; ${c.date||todayStr()}</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <label style="font-size:0.65rem;color:var(--muted);">In <input type="time" id="ci-in-${c.id}" value="${toTimeInputValue(c.timeIn||c.time)}" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:var(--white);border-radius:3px;padding:3px 5px;font-size:0.75rem;margin-left:3px;"/></label>
+      <label style="font-size:0.65rem;color:var(--muted);">Out <input type="time" id="ci-out-${c.id}" value="${toTimeInputValue(c.timeOut)}" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:var(--white);border-radius:3px;padding:3px 5px;font-size:0.75rem;margin-left:3px;"/></label>
+    </div>
+    <div style="display:flex;gap:6px;margin-top:0.6rem;">
+      ${!c.timeOut?`<button class="adm-del" style="background:rgba(61,184,113,0.15);border-color:rgba(61,184,113,0.35);color:#7FE0A8;padding:5px 10px;font-size:0.7rem;" onclick="checkoutEntryNow(${c.id})">&#128274; Check Out Now</button>`:''}
+      <button class="adm-del" style="padding:5px 10px;font-size:0.7rem;" id="ci-save-${c.id}" onclick="saveCheckinEdit(${c.id})">&#128190; Save</button>
+    </div>
+  </div>`).join('');
+}
+async function checkoutEntryNow(id){
+  await loadDB();
+  const c=(DB.checkins||[]).find(x=>x.id===id);
+  if(!c) return;
+  c.timeOut=new Date().toISOString();
+  const saved=await saveDB();
+  if(saved){
+    await sendTG('🚪 NAT-VIBE STUDIO — CHECK-OUT (Time Out)\n\n👤 Name: '+c.name+'\n📞 Phone: '+c.phone+'\n📅 '+new Date().toLocaleString());
+  }
+  renderCheckinManageList();
+}
+async function saveCheckinEdit(id){
+  const inVal=document.getElementById('ci-in-'+id).value;
+  const outVal=document.getElementById('ci-out-'+id).value;
+  const btn=document.getElementById('ci-save-'+id);
+  const orig=btn?btn.textContent:'';
+  if(btn){btn.textContent='Saving...';btn.disabled=true;}
+  await loadDB();
+  const c=(DB.checkins||[]).find(x=>x.id===id);
+  if(c){
+    if(inVal) c.timeIn=combineDateTime(c.date, inVal);
+    c.timeOut=outVal?combineDateTime(c.date, outVal):null;
+    await saveDB();
+  }
+  renderCheckinManageList();
 }
 function renderAdminCheckins(){
   const list=document.getElementById('admCheckinList');
@@ -1758,13 +1860,13 @@ function renderAdminCheckins(){
     qrLink.download='natvibestudio-checkin-qr.png';
     document.getElementById('checkinUrlText').textContent=url;
   }
-  const entries=(DB.checkins||[]).slice().sort((a,b)=>b.id-a.id);
+  const entries=(DB.checkins||[]).slice().sort((a,b)=>new Date(b.timeIn||b.time||b.id)-new Date(a.timeIn||a.time||a.id));
   if(!entries.length){list.innerHTML='<div style="color:var(--muted);padding:1.5rem;text-align:center;font-size:0.85rem;">No check-ins yet.</div>';return;}
-  list.innerHTML='<div style="color:var(--muted);font-size:0.8rem;margin-bottom:0.8rem;">Total checked in: <strong style="color:var(--white);">'+entries.length+'</strong></div>'+
+  list.innerHTML='<div style="color:var(--muted);font-size:0.8rem;margin-bottom:0.8rem;">Total logged: <strong style="color:var(--white);">'+entries.length+'</strong></div>'+
     entries.map(c=>`<div class="adm-q-item">
       <div style="flex:1;">
         <div class="adm-q-txt" style="font-weight:700;">${c.name}</div>
-        <div class="adm-q-gst">${c.phone} &middot; ${new Date(c.time||c.id).toLocaleString()}</div>
+        <div class="adm-q-gst">${c.phone} &middot; ${c.date||''} &middot; In: ${fmtDateTime(c.timeIn||c.time)} &middot; Out: ${c.timeOut?fmtDateTime(c.timeOut):'<span style="color:var(--gold)">Not yet</span>'}</div>
       </div>
       <button class="adm-del" onclick="deleteCheckin(${c.id})">&#128465; Delete</button>
     </div>`).join('');
@@ -2354,16 +2456,36 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closePortal();});
   </div>
 </div>
 
-<!-- GUEST CHECK-IN MODAL (via QR code scan) -->
+<!-- GUEST CHECK-IN MODAL (via QR code scan or nav button) -->
 <div class="site-popup-overlay" id="checkinOverlay" onclick="if(event.target===this)closeCheckin()">
-  <div class="book-modal-box">
-    <h3 style="color:#7FE0A8;">&#9989; Event Check-In</h3>
-    <div class="bm-guest">Welcome! Please enter your details to confirm you're here for the <strong>Longest Interview Marathon</strong>.</div>
-    <input type="text" class="pm-inp" id="checkinName" placeholder="Your Full Name"/>
-    <input type="tel" class="pm-inp" id="checkinPhone" placeholder="Your Phone Number"/>
-    <button class="pm-btn" style="background:#3DB871;border-color:#3DB871;" onclick="submitCheckin()">Check In Now</button>
-    <div class="pm-err" id="checkinErr">Please enter your name and phone number.</div>
-    <div class="bm-success" id="checkinSuccess">&#10003; You're checked in! Thanks for coming.</div>
+  <div class="book-modal-box" id="checkinBox" style="max-width:440px;">
+
+    <!-- STAGE 1: PASSWORD -->
+    <div id="checkinStage1">
+      <h3 style="color:#7FE0A8;">&#9989; Event Check-In</h3>
+      <div class="bm-guest">Enter the event password to check in or check out.</div>
+      <input type="password" class="pm-inp" id="checkinPassInp" placeholder="Password"/>
+      <button class="pm-btn" style="background:#3DB871;border-color:#3DB871;" onclick="checkinLogin()">Continue</button>
+      <div class="pm-err" id="checkinPassErr">Incorrect password. Please try again.</div>
+    </div>
+
+    <!-- STAGE 2: CHECK-IN FORM + LOG BOOK -->
+    <div id="checkinStage2" style="display:none;">
+      <h3 style="color:#7FE0A8;">&#9989; New Check-In</h3>
+      <div class="bm-guest">Enter your details to record your <strong>time in</strong>. Come back to this page later to record your <strong>time out</strong>.</div>
+      <input type="text" class="pm-inp" id="checkinName" placeholder="Your Full Name"/>
+      <input type="tel" class="pm-inp" id="checkinPhone" placeholder="Your Phone Number"/>
+      <button class="pm-btn" style="background:#3DB871;border-color:#3DB871;" onclick="submitCheckin()">Check In Now</button>
+      <div class="pm-err" id="checkinErr">Please enter your name and phone number.</div>
+      <div class="bm-success" id="checkinSuccess"></div>
+
+      <div style="margin-top:1.5rem;padding-top:1.2rem;border-top:1px solid rgba(255,255,255,0.1);">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;letter-spacing:1px;text-transform:uppercase;font-size:0.85rem;color:var(--white);margin-bottom:0.7rem;">&#128203; Log Book — Check Out / Edit</div>
+        <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.7rem;">Find your name below to record your time out, or fix a mistake in your time in/out.</div>
+        <div id="checkinManageList" style="max-height:320px;overflow-y:auto;"></div>
+      </div>
+    </div>
+
   </div>
 </div>
 </body>
