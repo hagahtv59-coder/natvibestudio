@@ -897,6 +897,27 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
           <div class="pm-err" id="teamAddErr">Please provide a name and a photo.</div>
           <div class="adm-success" id="teamAddSuccess">&#10003; Added! They'll now see their picture on the Team Vibe portal and can choose their role.</div>
         </div>
+        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:4px;padding:1rem;margin-bottom:1.5rem;">
+          <label class="adm-label">Manage Available Roles</label>
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.6rem;">Add a new role here any time — it instantly appears as a choice on the Team Vibe portal. You can also remove roles no longer needed.</div>
+          <div style="display:flex;gap:8px;margin-bottom:0.8rem;">
+            <input type="text" class="pm-inp" id="newRoleName" placeholder="e.g. Parking Attendant" style="flex:1;margin-bottom:0;"/>
+            <button class="pm-btn" style="background:#3DB871;border-color:#3DB871;width:auto;padding:0 18px;white-space:nowrap;" onclick="addNewRole()">+ Add Role</button>
+          </div>
+          <div class="pm-err" id="newRoleErr">Please type a role name (and make sure it doesn't already exist).</div>
+          <div id="roleListChips" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+        </div>
+        <div style="background:rgba(255,200,87,0.06);border:1px solid rgba(255,200,87,0.25);border-radius:4px;padding:1rem;margin-bottom:1.5rem;">
+          <label class="adm-label">Set Duties for a Role</label>
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.6rem;">Paste the duties/instructions for a role below. Anyone who picks that role sees these duties immediately, right after confirming — even before you approve them.</div>
+          <select class="adm-select" id="dutiesRoleSelect" style="width:100%;margin-bottom:0.6rem;" onchange="loadDutiesForRole()">
+            <option value="">-- Choose a Role --</option>
+          </select>
+          <textarea class="pm-inp" id="dutiesText" rows="5" placeholder="Type or paste the duties for this role..." style="width:100%;resize:vertical;min-height:100px;margin-bottom:0.6rem;"></textarea>
+          <button class="pm-btn" style="background:#FFC857;border-color:#FFC857;color:#1A0308;" onclick="saveDutiesForRole()">Save Duties for This Role</button>
+          <div class="pm-err" id="dutiesErr">Please choose a role first.</div>
+          <div class="adm-success" id="dutiesSuccess">&#10003; Duties saved for this role.</div>
+        </div>
         <div style="margin-bottom:1rem;">
           <label class="adm-label">Filter by Status</label>
           <select class="adm-select" id="teamFilter" onchange="renderAdminTeam()">
@@ -1038,7 +1059,7 @@ const GUESTS=[
   {n:"Gabriel Owusu",r:"L/CPL | Africa Silver Medalist | Ambassador"}
 ];
 
-let DB = {questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[]};
+let DB = {questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[]};
 
 // Spreads questions across 3 JSONBin bins (each capped at 100kb on the free plan)
 // so a single guest list can hold much more data before hitting the limit.
@@ -1083,6 +1104,8 @@ async function loadDB(){
     if(!DB.sponsors) DB.sponsors=[];
     if(!DB.siteContent) DB.siteContent={};
     if(!DB.teamMembers) DB.teamMembers=[];
+    if(!DB.roleDuties) DB.roleDuties={};
+    if(!DB.teamRoles || !DB.teamRoles.length) DB.teamRoles=DEFAULT_TEAM_ROLES.slice();
     if(!DB.checkins) DB.checkins=[];
     DB.checkins = DB.checkins.map(c=>{
       if(c.timeIn) return c;
@@ -1149,7 +1172,7 @@ function restoreBackup(event){
       event.target.value='';
       return;
     }
-    DB = Object.assign({questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[]}, parsed);
+    DB = Object.assign({questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}}, parsed);
     const saved=await saveDB();
     event.target.value='';
     if(saved){
@@ -1174,7 +1197,7 @@ async function saveDB(){
   const extra = {
     schedules: DB.schedules||{}, gallery: DB.gallery||[], videos: DB.videos||[],
     guestApplications: DB.guestApplications||[], mediaPartners: DB.mediaPartners||[],
-    sponsors: DB.sponsors||[], siteContent: DB.siteContent||{}, teamMembers: DB.teamMembers||[], checkins: DB.checkins||[]
+    sponsors: DB.sponsors||[], siteContent: DB.siteContent||{}, teamMembers: DB.teamMembers||[], checkins: DB.checkins||[], roleDuties: DB.roleDuties||{}, teamRoles: DB.teamRoles||[]
   };
   const failures=[];
   await Promise.all([
@@ -1239,7 +1262,11 @@ function dismissAdminWelcome(){
 }
 
 const TEAM_PASS="NATVIBE";
-const TEAM_ROLES=["Witnesses","Stewards","Camera/Photo","Medical (rotating)","Security/Safety","Logistics/Hospitality","Log Book Manager","Social Media/Content","Event Director + Shift Coordinator","Time Keeper"];
+const DEFAULT_TEAM_ROLES=["Witnesses","Stewards","Camera/Photo","Medical (rotating)","Security/Safety","Logistics/Hospitality","Log Book Manager","Social Media/Content","Event Director + Shift Coordinator","Time Keeper"];
+function getTeamRoles(){
+  if(!DB.teamRoles || !DB.teamRoles.length){ DB.teamRoles = DEFAULT_TEAM_ROLES.slice(); }
+  return DB.teamRoles;
+}
 async function teamLogin(){
   if(document.getElementById('teamPassInp').value.trim()===TEAM_PASS){
     document.getElementById('teamLoginErr').style.display='none';
@@ -1250,7 +1277,7 @@ async function teamLogin(){
   }else{document.getElementById('teamLoginErr').style.display='block';}
 }
 function roleOptionsHtml(selected){
-  return '<option value="">-- Choose a Role --</option>'+TEAM_ROLES.map(r=>`<option value="${r}" ${r===selected?'selected':''}>${r}</option>`).join('');
+  return '<option value="">-- Choose a Role --</option>'+getTeamRoles().map(r=>`<option value="${r}" ${r===selected?'selected':''}>${r}</option>`).join('');
 }
 function renderTeamRoster(){
   const list=document.getElementById('teamRosterList');
@@ -1262,10 +1289,15 @@ function renderTeamRoster(){
       body=`<select class="tr-select" id="tr-role-${m.id}">${roleOptionsHtml('')}</select>
         <button class="tr-confirm-btn" onclick="chooseTeamRole(${m.id})">Confirm Role</button>
         <div class="tr-err" id="tr-err-${m.id}">Please choose a role first.</div>`;
-    }else if(m.status==='approved'){
-      body=`<div class="tr-status approved">&#9989; Confirmed Role:<br><strong>${m.role}</strong></div>`;
     }else{
-      body=`<div class="tr-status pending">&#9203; Role selected: <strong>${m.role}</strong><br>Awaiting admin approval. Admin will get in touch with you.</div>`;
+      const statusLine = m.status==='approved'
+        ? `<div class="tr-status approved">&#9989; Confirmed Role:<br><strong>${m.role}</strong></div>`
+        : `<div class="tr-status pending">&#9203; Role selected: <strong>${m.role}</strong><br>Awaiting admin approval. Admin will get in touch with you.</div>`;
+      const duties = DB.roleDuties && DB.roleDuties[m.role] ? DB.roleDuties[m.role] : '';
+      const dutiesBlock = duties
+        ? `<div style="text-align:left;background:rgba(255,255,255,0.05);border:1px solid rgba(255,200,87,0.3);border-radius:3px;padding:0.6rem 0.7rem;margin-top:0.6rem;font-size:0.72rem;line-height:1.6;white-space:pre-line;"><strong style="color:var(--gold);">Your Duties:</strong><br>${qHtml(duties)}</div>`
+        : '';
+      body = statusLine + dutiesBlock;
     }
     return `<div class="tr-card">
       <img class="tr-photo" src="${m.photo}"/>
@@ -1293,6 +1325,71 @@ async function chooseTeamRole(id){
   renderTeamRoster();
 }
 
+function populateDutiesRoleSelect(){
+  const sel=document.getElementById('dutiesRoleSelect');
+  if(!sel) return;
+  const current=sel.value;
+  sel.innerHTML='<option value="">-- Choose a Role --</option>'+getTeamRoles().map(r=>`<option value="${r}">${r}</option>`).join('');
+  sel.value=current;
+  document.getElementById('dutiesText').value='';
+  document.getElementById('dutiesErr').style.display='none';
+  document.getElementById('dutiesSuccess').style.display='none';
+  renderRoleChips();
+}
+function renderRoleChips(){
+  const box=document.getElementById('roleListChips');
+  if(!box) return;
+  box.innerHTML=getTeamRoles().map(r=>`<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:4px 6px 4px 12px;font-size:0.72rem;">${r}<button onclick="removeRole('${r.replace(/'/g,"\\'")}')" style="background:rgba(255,90,90,0.2);border:none;color:#FF8A8A;border-radius:50%;width:18px;height:18px;cursor:pointer;font-size:0.7rem;line-height:1;">&#10005;</button></span>`).join('');
+}
+async function addNewRole(){
+  const input=document.getElementById('newRoleName');
+  const errEl=document.getElementById('newRoleErr');
+  const name=input.value.trim();
+  errEl.style.display='none';
+  await loadDB();
+  const roles=getTeamRoles();
+  if(!name || roles.some(r=>r.toLowerCase()===name.toLowerCase())){
+    errEl.style.display='block';
+    return;
+  }
+  DB.teamRoles=roles.concat([name]);
+  const saved=await saveDB();
+  if(saved){
+    input.value='';
+    populateDutiesRoleSelect();
+  }
+}
+async function removeRole(role){
+  if(!confirm('Remove "'+role+'" from the list of roles? Team members who already picked this role keep it, but no one new can select it going forward.'))return;
+  await loadDB();
+  DB.teamRoles=getTeamRoles().filter(r=>r!==role);
+  await saveDB();
+  populateDutiesRoleSelect();
+}
+function loadDutiesForRole(){
+  const role=document.getElementById('dutiesRoleSelect').value;
+  document.getElementById('dutiesSuccess').style.display='none';
+  document.getElementById('dutiesErr').style.display='none';
+  document.getElementById('dutiesText').value = role ? (DB.roleDuties && DB.roleDuties[role] || '') : '';
+}
+async function saveDutiesForRole(){
+  const role=document.getElementById('dutiesRoleSelect').value;
+  const text=document.getElementById('dutiesText').value.trim();
+  const errEl=document.getElementById('dutiesErr');
+  const okEl=document.getElementById('dutiesSuccess');
+  errEl.style.display='none'; okEl.style.display='none';
+  if(!role){errEl.style.display='block';return;}
+  const btn=event.target; btn.disabled=true; const orig=btn.textContent; btn.textContent='Saving...';
+  await loadDB();
+  if(!DB.roleDuties) DB.roleDuties={};
+  DB.roleDuties[role]=text;
+  const saved=await saveDB();
+  if(saved){
+    okEl.style.display='block';
+    setTimeout(()=>okEl.style.display='none',3000);
+  }
+  btn.disabled=false; btn.textContent=orig;
+}
 async function addTeamRosterMember(){
   const name=document.getElementById('newTeamName').value.trim();
   const fileInput=document.getElementById('newTeamPhoto');
@@ -1519,7 +1616,7 @@ function switchAdmTab(id){
   if(id==='adm-media'){renderAdminGallery();renderAdminVideos();}
   if(id==='adm-cfg'){renderAdminApplications();}
   if(id==='adm-site'){loadSiteContentFields();renderAdminMediaPartners();renderAdminSponsors();}
-  if(id==='adm-team'){renderAdminTeam();}
+  if(id==='adm-team'){renderAdminTeam();populateDutiesRoleSelect();}
   if(id==='adm-checkin'){renderAdminCheckins();}
 }
 function updateAdmStats(){
