@@ -684,6 +684,12 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
         <div class="adm-stat"><div class="adm-sn" id="admStatQSet">0</div><div class="adm-sl">Q's Set</div></div>
         <div class="adm-stat"><div class="adm-sn" id="admStatA">0</div><div class="adm-sl">Accesses</div></div>
       </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:4px;padding:0.8rem 1rem;margin-bottom:1.2rem;align-items:center;">
+        <div style="font-size:0.72rem;color:var(--muted);flex:1;min-width:180px;">&#128190; Save a backup copy regularly, especially after adding lots of data. If anything ever goes wrong, you can restore from your last backup.</div>
+        <button class="adm-del" style="background:rgba(61,184,113,0.15);border-color:rgba(61,184,113,0.35);color:#7FE0A8;padding:7px 14px;" onclick="exportBackup()">&#8681; Download Backup</button>
+        <button class="adm-del" style="padding:7px 14px;" onclick="document.getElementById('restoreFileInp').click()">&#8593; Restore from Backup</button>
+        <input type="file" id="restoreFileInp" accept="application/json" style="display:none;" onchange="restoreBackup(event)"/>
+      </div>
       <div class="adm-tabs">
         <div class="adm-tab active" onclick="switchAdmTab('adm-add')">&#43; Add Questions</div>
         <div class="adm-tab" onclick="switchAdmTab('adm-view')">&#128203; View All</div>
@@ -1106,6 +1112,53 @@ async function putBin(url, payload, label, failures, key){
   }catch(e){
     failures.push(label+" (network error): "+e.message);
   }
+}
+async function exportBackup(){
+  await loadDB();
+  const stamp=new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
+  const blob=new Blob([JSON.stringify(DB, null, 2)], {type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='natvibestudio-backup-'+stamp+'.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function restoreBackup(event){
+  const file=event.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=async function(e){
+    let parsed;
+    try{
+      parsed=JSON.parse(e.target.result);
+    }catch(err){
+      alert('This file is not valid — it doesn\'t look like a NAT-VIBE STUDIO backup file.');
+      event.target.value='';
+      return;
+    }
+    if(!parsed || typeof parsed!=='object' || !('questions' in parsed)){
+      alert('This file is not valid — it doesn\'t look like a NAT-VIBE STUDIO backup file.');
+      event.target.value='';
+      return;
+    }
+    const qCount=(parsed.questions||[]).length;
+    if(!confirm('This will REPLACE all current live data with the backup file (which has '+qCount+' saved questions). This cannot be undone. Continue?')){
+      event.target.value='';
+      return;
+    }
+    DB = Object.assign({questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[]}, parsed);
+    const saved=await saveDB();
+    event.target.value='';
+    if(saved){
+      alert('✓ Backup restored successfully! Refreshing the dashboard now.');
+      updateAdmStats();
+      renderAdminQ();
+    }
+  };
+  reader.readAsText(file);
 }
 async function saveDB(){
   const core = {accesses: DB.accesses||0, guests: DB.guests||[], hiddenGuests: DB.hiddenGuests||[]};
