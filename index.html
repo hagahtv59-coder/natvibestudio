@@ -1004,19 +1004,6 @@ const BOT_TOKEN="8982644798:AAFlFEDpUKZHhyL49VVr5d9QkqpVXgo_u1s";
 const CHAT_ID="8662679606";
 const GUEST_PASS="SPECIALGUEST";
 const ADMIN_PASS="6Forgive99";
-const BIN_ID="6a1e28f2f5f4af5e29aaa3d8";        // core: guests, accesses, hiddenGuests
-const QUESTIONS_BIN_ID="6a445305f5f4af5e294a4c2e"; // questions shard 1
-const QUESTIONS_BIN_ID_2="6a420c3af5f4af5e293fdacc"; // questions shard 2
-const QUESTIONS_BIN_ID_3="6a470e39f5f4af5e295738df"; // questions shard 3
-const EXTRA_BIN_ID="6a445241da38895dfe18b9f2";     // schedules, gallery, videos, guestApplications, mediaPartners, sponsors, siteContent
-const MASTER_KEY="$2a$10$VM15AZotifF2wcXou8VdceFnUd7te9hDc3wHD1gD8IPtKR8PGVHqm";
-// Shard 2 & 3 bins live in a different JSONBin account, so they need their own key.
-const MASTER_KEY_2="$2a$10$fEi2jZ47VxnreDHYK/N0p.EaCtczgFdc30kBdb.VwVp3mYRkZ8GCu";
-const BIN_URL="https://api.jsonbin.io/v3/b/"+BIN_ID;
-const QUESTIONS_BIN_URL="https://api.jsonbin.io/v3/b/"+QUESTIONS_BIN_ID;
-const QUESTIONS_BIN_URL_2="https://api.jsonbin.io/v3/b/"+QUESTIONS_BIN_ID_2;
-const QUESTIONS_BIN_URL_3="https://api.jsonbin.io/v3/b/"+QUESTIONS_BIN_ID_3;
-const EXTRA_BIN_URL="https://api.jsonbin.io/v3/b/"+EXTRA_BIN_ID;
 const IMGBB_KEY="fabf2c5eb023f8de8b223ae9e980ac72";
 
 const GUESTS=[
@@ -1059,39 +1046,22 @@ const GUESTS=[
   {n:"Gabriel Owusu",r:"L/CPL | Africa Silver Medalist | Ambassador"}
 ];
 
+// Saving/loading now goes through /api/db (a Vercel serverless function) instead
+// of talking to JSONBin.io directly from the visitor's phone. This exists because
+// some mobile carriers interfere with "save" requests made directly from a phone
+// browser, even though normal page loads work fine. Routing through our own
+// same-site endpoint avoids that entirely, and also keeps the database keys off
+// the public page.
+const DB_API = "/api/db";
+
 let DB = {questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[]};
 
-// Spreads questions across 3 JSONBin bins (each capped at 100kb on the free plan)
-// so a single guest list can hold much more data before hitting the limit.
-// Same guest always lands in the same shard, based on a simple hash of their name.
-function questionShard(guestName){
-  let h=0;
-  const s=String(guestName||"");
-  for(let i=0;i<s.length;i++){ h=(h*31 + s.charCodeAt(i)) >>> 0; }
-  return h%3;
-}
-
-async function fetchBin(url, label, key){
-  const res = await fetch(url+"/latest", {headers:{"X-Master-Key":key||MASTER_KEY}, cache:"no-store"});
-  if(!res.ok){
-    const errText = await res.text().catch(()=> "");
-    throw new Error(label+" bin HTTP "+res.status+": "+errText);
-  }
-  const data = await res.json();
-  return data.record || {};
-}
 async function loadDB(){
   try{
-    const [core, q1, q2, q3, extra] = await Promise.all([
-      fetchBin(BIN_URL, "core"),
-      fetchBin(QUESTIONS_BIN_URL, "questions shard 1"),
-      fetchBin(QUESTIONS_BIN_URL_2, "questions shard 2", MASTER_KEY_2),
-      fetchBin(QUESTIONS_BIN_URL_3, "questions shard 3", MASTER_KEY_2),
-      fetchBin(EXTRA_BIN_URL, "extra")
-    ]);
-    const allQuestions = [].concat(q1.questions||[], q2.questions||[], q3.questions||[]);
-    DB = Object.assign({}, core, extra);
-    DB.questions = allQuestions;
+    const res = await fetch(DB_API, {method:"GET", cache:"no-store"});
+    const json = await res.json();
+    if(!res.ok || !json.ok){ throw new Error(json.error || ("HTTP "+res.status)); }
+    DB = json.data || {};
     if(!DB.questions) DB.questions=[];
     if(!DB.accesses) DB.accesses=0;
     if(!DB.guests) DB.guests=[];
@@ -1119,21 +1089,6 @@ async function loadDB(){
     console.error("loadDB error",e);
     alert("⚠ Could not load saved data from the database: "+e.message+". The page is showing only the default/built-in guest list, not your saved data.");
     return false;
-  }
-}
-async function putBin(url, payload, label, failures, key){
-  try{
-    const res = await fetch(url, {
-      method:"PUT",
-      headers:{"Content-Type":"application/json","X-Master-Key":key||MASTER_KEY},
-      body: JSON.stringify(payload)
-    });
-    if(!res.ok){
-      const errText = await res.text().catch(()=> "");
-      failures.push(label+" (HTTP "+res.status+"): "+errText);
-    }
-  }catch(e){
-    failures.push(label+" (network error): "+e.message);
   }
 }
 async function exportBackup(){
@@ -1184,34 +1139,23 @@ function restoreBackup(event){
   reader.readAsText(file);
 }
 async function saveDB(){
-  const core = {accesses: DB.accesses||0, guests: DB.guests||[], hiddenGuests: DB.hiddenGuests||[]};
-  const allQuestions = DB.questions||[];
-  const shard1=[], shard2=[], shard3=[];
-  allQuestions.forEach(q=>{
-    const s=questionShard(q.guest);
-    if(s===0) shard1.push(q); else if(s===1) shard2.push(q); else shard3.push(q);
-  });
-  const questions1 = {questions: shard1};
-  const questions2 = {questions: shard2};
-  const questions3 = {questions: shard3};
-  const extra = {
-    schedules: DB.schedules||{}, gallery: DB.gallery||[], videos: DB.videos||[],
-    guestApplications: DB.guestApplications||[], mediaPartners: DB.mediaPartners||[],
-    sponsors: DB.sponsors||[], siteContent: DB.siteContent||{}, teamMembers: DB.teamMembers||[], checkins: DB.checkins||[], roleDuties: DB.roleDuties||{}, teamRoles: DB.teamRoles||[]
-  };
-  const failures=[];
-  await Promise.all([
-    putBin(BIN_URL, core, "core", failures),
-    putBin(QUESTIONS_BIN_URL, questions1, "questions shard 1", failures),
-    putBin(QUESTIONS_BIN_URL_2, questions2, "questions shard 2", failures, MASTER_KEY_2),
-    putBin(QUESTIONS_BIN_URL_3, questions3, "questions shard 3", failures, MASTER_KEY_2),
-    putBin(EXTRA_BIN_URL, extra, "extra", failures)
-  ]);
-  if(failures.length){
-    alert("⚠ SAVE FAILED for: "+failures.join(" | ")+". That part of your change was NOT saved — it will disappear on refresh.");
+  try{
+    const res = await fetch(DB_API, {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify(DB)
+    });
+    const json = await res.json();
+    if(!res.ok || !json.ok){
+      const msg = json.failures ? json.failures.join(" | ") : (json.error || ("HTTP "+res.status));
+      alert("⚠ SAVE FAILED for: "+msg+". That part of your change was NOT saved — it will disappear on refresh.");
+      return false;
+    }
+    return true;
+  }catch(e){
+    alert("⚠ SAVE FAILED (network error): "+e.message+". That part of your change was NOT saved — it will disappear on refresh.");
     return false;
   }
-  return true;
 }
 
 function showPM(id){
