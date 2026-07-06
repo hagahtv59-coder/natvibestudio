@@ -1223,15 +1223,20 @@ async function teamLogin(){
 function roleOptionsHtml(selected){
   return '<option value="">-- Choose a Role --</option>'+getTeamRoles().map(r=>`<option value="${r}" ${r===selected?'selected':''}>${r}</option>`).join('');
 }
+let changingRoleIds = new Set();
 function renderTeamRoster(){
   const list=document.getElementById('teamRosterList');
   const members=(DB.teamMembers||[]).slice().sort((a,b)=>a.name.localeCompare(b.name));
   if(!members.length){list.innerHTML='<div class="no-res">No team members have been added yet. Check back soon.</div>';return;}
   list.innerHTML=members.map(m=>{
     let body='';
-    if(!m.role){
-      body=`<select class="tr-select" id="tr-role-${m.id}">${roleOptionsHtml('')}</select>
+    if(!m.role || changingRoleIds.has(m.id)){
+      const cancelBtn = m.role
+        ? `<button class="tr-confirm-btn" style="background:transparent;border:1px solid rgba(255,255,255,0.25);color:var(--muted);margin-top:6px;" onclick="cancelChangeRole(${m.id})">Cancel</button>`
+        : '';
+      body=`<select class="tr-select" id="tr-role-${m.id}">${roleOptionsHtml(m.role||'')}</select>
         <button class="tr-confirm-btn" onclick="chooseTeamRole(${m.id})">Confirm Role</button>
+        ${cancelBtn}
         <div class="tr-err" id="tr-err-${m.id}">Please choose a role first.</div>`;
     }else{
       const statusLine = m.status==='approved'
@@ -1241,7 +1246,8 @@ function renderTeamRoster(){
       const dutiesBlock = duties
         ? `<div style="text-align:left;background:rgba(255,255,255,0.05);border:1px solid rgba(255,200,87,0.3);border-radius:3px;padding:0.6rem 0.7rem;margin-top:0.6rem;font-size:0.72rem;line-height:1.6;white-space:pre-line;"><strong style="color:var(--gold);">Your Duties:</strong><br>${qHtml(duties)}</div>`
         : '';
-      body = statusLine + dutiesBlock;
+      const changeLink = `<div style="margin-top:0.6rem;"><a onclick="toggleChangeRole(${m.id})" style="color:var(--muted);font-size:0.68rem;text-decoration:underline;cursor:pointer;">Picked the wrong role? Change it</a></div>`;
+      body = statusLine + dutiesBlock + changeLink;
     }
     return `<div class="tr-card">
       <img class="tr-photo" src="${m.photo}"/>
@@ -1249,6 +1255,14 @@ function renderTeamRoster(){
       ${body}
     </div>`;
   }).join('');
+}
+function toggleChangeRole(id){
+  changingRoleIds.add(id);
+  renderTeamRoster();
+}
+function cancelChangeRole(id){
+  changingRoleIds.delete(id);
+  renderTeamRoster();
 }
 async function chooseTeamRole(id){
   const sel=document.getElementById('tr-role-'+id);
@@ -1260,12 +1274,19 @@ async function chooseTeamRole(id){
   await loadDB();
   const m=(DB.teamMembers||[]).find(t=>t.id===id);
   if(m){
+    const isChange = !!m.role && m.role!==role;
+    const previousRole = m.role;
     m.role=role;
     m.status='pending';
     m.confirmedAt=new Date().toISOString();
     await saveDB();
-    sendTG('🤝 NAT-VIBE STUDIO\n\nTeam Vibe role selected\n👤 '+m.name+'\n🎯 Role: '+role+'\n📅 '+new Date().toLocaleString());
+    if(isChange){
+      sendTG('🔄 NAT-VIBE STUDIO\n\nTeam Vibe role CHANGED\n👤 '+m.name+'\n🎯 New role: '+role+' (was: '+previousRole+')\n📅 '+new Date().toLocaleString());
+    }else{
+      sendTG('🤝 NAT-VIBE STUDIO\n\nTeam Vibe role selected\n👤 '+m.name+'\n🎯 Role: '+role+'\n📅 '+new Date().toLocaleString());
+    }
   }
+  changingRoleIds.delete(id);
   renderTeamRoster();
 }
 
