@@ -613,6 +613,7 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
         <div class="q-hdr-role" id="qGuestRole"></div>
       </div>
       <div class="q-items" id="qItems"></div>
+      <button class="pm-btn" id="qPdfBtn" style="margin-top:1.2rem;" onclick="downloadQuestionsPDF()">&#8681; Download as PDF</button>
     </div>
   </div>
 
@@ -1416,6 +1417,63 @@ function viewQ(name,role){
   sendTG('👁 NAT-VIBE STUDIO\n\n🎙 Guest viewed questions\n👤 '+name+'\n📅 '+new Date().toLocaleString());
 }
 
+function downloadQuestionsPDF(){
+  const name = document.getElementById('qGuestName').textContent;
+  const role = document.getElementById('qGuestRole').textContent;
+  const qs = (DB.questions||[]).filter(q=>q.guest===name);
+  if(!qs.length){ alert('There are no questions to download yet for this guest.'); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'pt', format:'a4'});
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 50;
+  const maxWidth = pageWidth - margin*2;
+  let y = 60;
+
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(18);
+  doc.text('NAT-VIBE STUDIO', margin, y);
+  y += 20;
+  doc.setFontSize(10);
+  doc.setFont('helvetica','normal');
+  doc.setTextColor(120);
+  doc.text('Longest Interview Marathon — Interview Questions', margin, y);
+  doc.setTextColor(0);
+  y += 30;
+
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(14);
+  doc.text(name, margin, y);
+  y += 18;
+  if(role){
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(11);
+    doc.text(role, margin, y);
+    y += 16;
+  }
+  doc.setDrawColor(200);
+  doc.line(margin, y, pageWidth-margin, y);
+  y += 26;
+
+  qs.forEach((q,i)=>{
+    if(y > pageHeight-80){ doc.addPage(); y=60; }
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(12);
+    doc.text('Question '+(i+1)+':', margin, y);
+    y += 16;
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(11);
+    const lines = doc.splitTextToSize(q.text, maxWidth);
+    lines.forEach(line=>{
+      if(y > pageHeight-60){ doc.addPage(); y=60; }
+      doc.text(line, margin, y);
+      y += 14;
+    });
+    y += 16;
+  });
+
+  doc.save(name.replace(/[^a-z0-9]/gi,'_').toLowerCase()+'-interview-questions.pdf');
+}
 function populateAdmSelects(){
   const s=document.getElementById('admGuestSel');
   const f=document.getElementById('admFilter');
@@ -2603,5 +2661,6 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closePortal();});
 
   </div>
 </div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </body>
 </html>
