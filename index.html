@@ -726,6 +726,12 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
           <button class="pm-btn" style="width:auto;padding:10px 20px;background:rgba(212,175,55,0.15);border-color:rgba(212,175,55,0.4);color:var(--gold);" onclick="autoArrangeQuestions()">&#128256; Auto-Arrange</button>
         </div>
         <div style="color:var(--muted);font-size:0.75rem;margin-bottom:.9rem;line-height:1.6;">Use the &#9650;&#9660; arrows to reorder a guest's questions. "Auto-Arrange" groups every guest's questions together and renumbers them Q1, Q2, Q3... in sequence.</div>
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:0.8rem;flex-wrap:wrap;">
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.78rem;color:var(--muted);cursor:pointer;">
+            <input type="checkbox" id="selectAllQ" onchange="toggleSelectAllQ()"/> Select All
+          </label>
+          <button class="adm-del" style="background:rgba(255,90,90,0.15);border-color:rgba(255,90,90,0.4);color:#FF8A8A;" id="deleteSelectedBtn" onclick="deleteSelectedQuestions()" disabled>&#128465; Delete Selected (<span id="selectedQCount">0</span>)</button>
+        </div>
         <div class="adm-q-list" id="admQList"></div>
       </div>
       <!-- GUESTS MANAGEMENT -->
@@ -1585,16 +1591,52 @@ async function deleteQ(id){
   await saveDB();
   renderAdminQ();updateAdmStats();
 }
+let selectedQIds = new Set();
 function renderAdminQ(){
   const f=document.getElementById('admFilter').value;
   const all=DB.questions||[];
   let qs=f?all.filter(q=>q.guest===f):all;
+  const visibleIds = new Set(qs.map(q=>q.id));
+  // drop selections that are no longer visible (e.g. filter changed)
+  selectedQIds.forEach(id=>{ if(!visibleIds.has(id)) selectedQIds.delete(id); });
   // running per-guest question number, based on the question's position within its own guest's set
   const seenCount={};
   document.getElementById('admQList').innerHTML=qs.length?qs.map(q=>{
     const n=(seenCount[q.guest]=(seenCount[q.guest]||0)+1);
-    return `<div class="adm-q-item"><div style="flex:1;"><div class="adm-q-gst" style="margin-bottom:.3rem;">🎙 ${q.guest} &middot; Q${n}</div><div class="adm-q-txt">${qHtml(q.text)}</div></div><div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0;"><div style="display:flex;gap:6px;"><button class="adm-del" style="padding:5px 9px;" title="Move up" onclick="moveQuestion(${q.id},-1)">&#9650;</button><button class="adm-del" style="padding:5px 9px;" title="Move down" onclick="moveQuestion(${q.id},1)">&#9660;</button></div><div style="display:flex;gap:6px;"><button class="adm-del" style="background:rgba(212,175,55,0.15);border-color:rgba(212,175,55,0.4);color:var(--gold);" onclick="editQuestion(${q.id})">&#9998; Edit</button><button class="adm-del" onclick="deleteQ(${q.id})">🗑 Del</button></div></div></div>`;
+    const checked = selectedQIds.has(q.id) ? 'checked' : '';
+    return `<div class="adm-q-item"><input type="checkbox" class="qSelectBox" data-id="${q.id}" ${checked} onchange="toggleSelectQ(${q.id}, this.checked)" style="margin-right:10px;margin-top:4px;flex-shrink:0;width:16px;height:16px;"/><div style="flex:1;"><div class="adm-q-gst" style="margin-bottom:.3rem;">🎙 ${q.guest} &middot; Q${n}</div><div class="adm-q-txt">${qHtml(q.text)}</div></div><div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0;"><div style="display:flex;gap:6px;"><button class="adm-del" style="padding:5px 9px;" title="Move up" onclick="moveQuestion(${q.id},-1)">&#9650;</button><button class="adm-del" style="padding:5px 9px;" title="Move down" onclick="moveQuestion(${q.id},1)">&#9660;</button></div><div style="display:flex;gap:6px;"><button class="adm-del" style="background:rgba(212,175,55,0.15);border-color:rgba(212,175,55,0.4);color:var(--gold);" onclick="editQuestion(${q.id})">&#9998; Edit</button><button class="adm-del" onclick="deleteQ(${q.id})">🗑 Del</button></div></div></div>`;
   }).join(''):'<div style="color:var(--muted);padding:1.5rem;text-align:center;font-size:0.85rem;">No questions added yet.</div>';
+  document.getElementById('selectAllQ').checked = qs.length>0 && qs.every(q=>selectedQIds.has(q.id));
+  updateSelectedQCount();
+}
+function toggleSelectQ(id, checked){
+  if(checked) selectedQIds.add(id); else selectedQIds.delete(id);
+  const f=document.getElementById('admFilter').value;
+  const qs=f?(DB.questions||[]).filter(q=>q.guest===f):(DB.questions||[]);
+  document.getElementById('selectAllQ').checked = qs.length>0 && qs.every(q=>selectedQIds.has(q.id));
+  updateSelectedQCount();
+}
+function toggleSelectAllQ(){
+  const allChecked = document.getElementById('selectAllQ').checked;
+  const f=document.getElementById('admFilter').value;
+  const qs=f?(DB.questions||[]).filter(q=>q.guest===f):(DB.questions||[]);
+  qs.forEach(q=>{ if(allChecked) selectedQIds.add(q.id); else selectedQIds.delete(q.id); });
+  renderAdminQ();
+}
+function updateSelectedQCount(){
+  const count=selectedQIds.size;
+  document.getElementById('selectedQCount').textContent=count;
+  document.getElementById('deleteSelectedBtn').disabled = count===0;
+}
+async function deleteSelectedQuestions(){
+  const count=selectedQIds.size;
+  if(!count) return;
+  if(!confirm('Delete '+count+' selected question'+(count>1?'s':'')+'? This cannot be undone.'))return;
+  await loadDB();
+  DB.questions=(DB.questions||[]).filter(q=>!selectedQIds.has(q.id));
+  await saveDB();
+  selectedQIds.clear();
+  renderAdminQ();updateAdmStats();
 }
 let editingQId=null;
 function editQuestion(id){
