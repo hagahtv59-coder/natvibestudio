@@ -765,8 +765,18 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
         <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(212,175,55,0.2);padding:1.25rem;border-radius:4px;margin-bottom:1.5rem;">
           <div class="adm-label" style="margin-bottom:0.75rem;">Set Interview Schedule</div>
           <select class="adm-select" id="schedGuestSel"><option value="">-- Choose a Guest --</option></select>
-          <input type="text" class="pm-inp" id="schedDate" placeholder="Date (e.g. July 30, 2026)" style="margin-bottom:0.6rem;"/>
-          <input type="text" class="pm-inp" id="schedTime" placeholder="Time (e.g. 3:00 PM - 3:20 PM)" style="margin-bottom:0.6rem;"/>
+          <div class="adm-label" style="font-size:0.78rem;margin-bottom:0.35rem;color:var(--muted);">Date</div>
+          <input type="date" class="pm-inp" id="schedDate" style="margin-bottom:0.6rem;"/>
+          <div style="display:flex;gap:0.6rem;margin-bottom:0.6rem;">
+            <div style="flex:1;">
+              <div class="adm-label" style="font-size:0.78rem;margin-bottom:0.35rem;color:var(--muted);">Start Time</div>
+              <input type="time" class="pm-inp" id="schedStart"/>
+            </div>
+            <div style="flex:1;">
+              <div class="adm-label" style="font-size:0.78rem;margin-bottom:0.35rem;color:var(--muted);">End Time</div>
+              <input type="time" class="pm-inp" id="schedEnd"/>
+            </div>
+          </div>
           <button class="pm-btn gold" style="width:auto;padding:11px 28px;" onclick="saveSchedule()">&#43; Save Schedule</button>
           <div class="adm-success" id="schedSuccess">&#10003; Schedule saved successfully!</div>
         </div>
@@ -1889,6 +1899,7 @@ async function initDynamicGuests(){
   renderDynamicGuests();
   enhanceStaticGuestCards();
   applyHiddenGuests();
+  reorderGuestsBySchedule();
   renderGallerySection();
   applySiteContent();
   renderMediaSection();
@@ -1896,12 +1907,42 @@ async function initDynamicGuests(){
 }
 
 /* ===== SCHEDULE & BOOKING ===== */
+function fmtSchedDate(d){
+  if(!d) return '';
+  // Accepts 'YYYY-MM-DD' from <input type=date>; falls back to raw string for legacy entries
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d);
+  if(!m) return d;
+  const dt = new Date(parseInt(m[1]), parseInt(m[2])-1, parseInt(m[3]));
+  return dt.toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'});
+}
+function fmtSchedTime(t){
+  if(!t) return '';
+  // Accepts 'HH:MM' (24h) from <input type=time>; falls back to raw string for legacy entries
+  const m = /^(\d{2}):(\d{2})$/.exec(t);
+  if(!m) return t;
+  let h = parseInt(m[1]); const min = m[2];
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12; if(h === 0) h = 12;
+  return h+':'+min+' '+ampm;
+}
+function schedSortKey(name){
+  const sch = (DB.schedules||{})[name];
+  if(!sch || !sch.date) return Infinity;
+  const time = /^\d{2}:\d{2}$/.test(sch.start||'') ? sch.start : '00:00';
+  const t = new Date(sch.date+'T'+time+':00').getTime();
+  return isNaN(t) ? Infinity : t;
+}
 function scheduleHTML(name){
   const sch = (DB.schedules||{})[name];
-  if(sch && (sch.date || sch.time)){
+  if(sch && (sch.date || sch.start || sch.time)){
     const parts=[];
-    if(sch.date) parts.push(sch.date);
-    if(sch.time) parts.push(sch.time);
+    if(sch.date) parts.push(fmtSchedDate(sch.date));
+    if(sch.start){
+      const range = sch.end ? (fmtSchedTime(sch.start)+' - '+fmtSchedTime(sch.end)) : fmtSchedTime(sch.start);
+      parts.push(range);
+    } else if(sch.time){
+      parts.push(sch.time); // legacy free-text schedules saved before the date/start/end fields existed
+    }
     return '<div class="g-sched">&#128197; '+parts.join(' &bull; ')+'</div>';
   }
   return '<div class="g-sched loading"><span class="dot"></span> Schedule: To Be Announced</div>';
@@ -2122,17 +2163,21 @@ function populateScheduleSelect(){
   sel.onchange=()=>{
     const sch=(DB.schedules||{})[sel.value];
     document.getElementById('schedDate').value = sch?sch.date||'':'';
-    document.getElementById('schedTime').value = sch?sch.time||'':'';
+    document.getElementById('schedStart').value = sch?sch.start||'':'';
+    document.getElementById('schedEnd').value = sch?sch.end||'':'';
   };
 }
 async function saveSchedule(){
   const guest=document.getElementById('schedGuestSel').value;
-  const date=document.getElementById('schedDate').value.trim();
-  const time=document.getElementById('schedTime').value.trim();
+  const date=document.getElementById('schedDate').value;
+  const start=document.getElementById('schedStart').value;
+  const end=document.getElementById('schedEnd').value;
   if(!guest){alert('Please select a guest.');return;}
+  if(!date||!start||!end){alert('Please set the date, start time, and end time.');return;}
+  if(end<=start){alert('End time must be after the start time.');return;}
   const btn=event.target; btn.disabled=true; const orig=btn.textContent; btn.textContent='Saving...';
   if(!DB.schedules) DB.schedules={};
-  DB.schedules[guest]={date,time};
+  DB.schedules[guest]={date,start,end};
   await saveDB();
   const s=document.getElementById('schedSuccess');s.style.display='block';
   setTimeout(()=>s.style.display='none',3000);
@@ -2150,9 +2195,17 @@ async function removeSchedule(name){
 function renderAdminSchedules(){
   const list=document.getElementById('admSchedList');
   const sch=DB.schedules||{};
-  const names=Object.keys(sch).filter(n=>sch[n] && (sch[n].date||sch[n].time));
+  // Show scheduled guests first, in the same chronological (sequential) order they'll appear
+  // on the public homepage, then any legacy/unscheduled entries at the end.
+  const names=Object.keys(sch)
+    .filter(n=>sch[n] && (sch[n].date||sch[n].time))
+    .sort((a,b)=>schedSortKey(a)-schedSortKey(b));
   if(!names.length){list.innerHTML='<div style="color:var(--muted);padding:1.5rem;text-align:center;font-size:0.85rem;">No schedules set yet.</div>';return;}
-  list.innerHTML=names.map(n=>`<div class="adm-q-item"><div><div class="adm-q-txt" style="font-weight:700;">${n}</div><div class="adm-q-gst">&#128197; ${[sch[n].date,sch[n].time].filter(Boolean).join(' &bull; ')}</div></div><button class="adm-del" onclick="removeSchedule('${n.replace(/'/g,"\\'")}')">&#128465; Remove</button></div>`).join('');
+  list.innerHTML=names.map((n,i)=>{
+    const s=sch[n];
+    const timeStr = s.date ? [fmtSchedDate(s.date), s.start ? (s.end?(fmtSchedTime(s.start)+' - '+fmtSchedTime(s.end)):fmtSchedTime(s.start)) : s.time].filter(Boolean).join(' &bull; ') : (s.time||'');
+    return `<div class="adm-q-item"><div><div class="adm-q-txt" style="font-weight:700;">${i+1}. ${n}</div><div class="adm-q-gst">&#128197; ${timeStr}</div></div><button class="adm-del" onclick="removeSchedule('${n.replace(/'/g,"\\'")}')">&#128465; Remove</button></div>`;
+  }).join('');
 }
 function refreshAllGuestSchedules(){
   document.querySelectorAll('#guests .g-card').forEach(card=>{
@@ -2162,6 +2215,25 @@ function refreshAllGuestSchedules(){
     const oldSched=card.querySelector('.g-sched');
     if(oldSched) oldSched.outerHTML=scheduleHTML(name);
   });
+  reorderGuestsBySchedule();
+}
+/* Re-arranges every guest card on the public homepage (static + admin-added guests alike)
+   into sequential order based on the date/start time set in the admin Schedule tab.
+   Guests without a schedule keep their original relative order and are pushed to the end. */
+function reorderGuestsBySchedule(){
+  const grids=Array.from(document.querySelectorAll('#guests .gg'));
+  if(!grids.length) return;
+  const primary=grids[0];
+  const cards=[];
+  grids.forEach(g=>{ Array.from(g.querySelectorAll('.g-card')).forEach(c=>cards.push(c)); });
+  if(!cards.length) return;
+  const withKeys=cards.map((card,idx)=>{
+    const nameEl=card.querySelector('.g-name');
+    const name=nameEl?nameEl.textContent.trim():'';
+    return {card, idx, key:schedSortKey(name)};
+  });
+  withKeys.sort((a,b)=> a.key-b.key || a.idx-b.idx);
+  withKeys.forEach(w=>primary.appendChild(w.card));
 }
 
 /* ===== GALLERY & VIDEOS ===== */
