@@ -91,7 +91,7 @@ module.exports = async (req, res) => {
         schedules: DB.schedules || {}, gallery: DB.gallery || [], videos: DB.videos || [],
         guestApplications: DB.guestApplications || [], mediaPartners: DB.mediaPartners || [],
         sponsors: DB.sponsors || [], siteContent: DB.siteContent || {}, teamMembers: DB.teamMembers || [],
-        checkins: DB.checkins || [], roleDuties: DB.roleDuties || {}, teamRoles: DB.teamRoles || []
+        checkins: DB.checkins || [], roleDuties: DB.roleDuties || {}, teamRoles: DB.teamRoles || [], logbook: DB.logbook || []
       };
 
       const failures = [];
