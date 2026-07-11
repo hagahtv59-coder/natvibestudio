@@ -651,7 +651,22 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
       <div class="pm-logo">NAT<span>-</span>VIBE STUDIO</div>
       <div class="pm-title" style="color:#C9A8FF;">&#129309; TEAM VIBE</div>
       <div class="pm-sub">Find your picture below, choose the role you'd like to volunteer for, and confirm. Admin will get in touch with you once you confirm.</div>
+      <div id="teamAnnounceBoard" style="margin-bottom:1rem;"></div>
+      <button class="pm-btn" style="background:transparent;border:1px solid rgba(255,90,90,0.4);color:#FF8A8A;width:auto;padding:9px 18px;margin-bottom:1rem;" onclick="openIssueReport()">&#128276; Report an Issue</button>
       <div class="tr-grid" id="teamRosterList"></div>
+    </div>
+  </div>
+
+  <!-- REPORT AN ISSUE -->
+  <div class="site-popup-overlay" id="issueReportOverlay" onclick="if(event.target===this)closeIssueReport()">
+    <div class="book-modal-box" style="max-width:440px;">
+      <h3 style="color:#FF8A8A;">&#128276; Report an Issue</h3>
+      <div class="bm-guest">This goes straight to the admin's Telegram — use it for anything that needs quick attention.</div>
+      <select class="tr-select" id="issueReporterSelect" style="margin-bottom:0.6rem;"><option value="">-- Your Name (optional) --</option></select>
+      <textarea class="pm-inp" id="issueMessage" rows="4" placeholder="e.g. Need backup at check-in, camera battery is dead..." style="width:100%;resize:vertical;margin-bottom:0.6rem;"></textarea>
+      <button class="pm-btn" style="background:#FF5A5A;border-color:#FF5A5A;" onclick="submitIssueReport()">Send to Admin</button>
+      <div class="pm-err" id="issueErr">Please type what's going on first.</div>
+      <div class="bm-success" id="issueSuccess">&#10003; Sent! Admin has been notified.</div>
     </div>
   </div>
 
@@ -702,6 +717,7 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
         <div class="adm-tab" onclick="switchAdmTab('adm-cfg')">&#128221; Call for Guest <span id="cfgPendingBadge" style="display:none;background:var(--red);color:#fff;border-radius:10px;padding:1px 7px;font-size:0.6rem;margin-left:4px;">0</span></div>
         <div class="adm-tab" onclick="switchAdmTab('adm-site')">&#9881; Site Content</div>
         <div class="adm-tab" onclick="switchAdmTab('adm-team')">&#129309; Team Vibe <span id="teamPendingBadge" style="display:none;background:var(--red);color:#fff;border-radius:10px;padding:1px 7px;font-size:0.6rem;margin-left:4px;">0</span></div>
+        <div class="adm-tab" onclick="switchAdmTab('adm-alerts')">&#128276; Team Alerts <span id="issuePendingBadge" style="display:none;background:var(--red);color:#fff;border-radius:10px;padding:1px 7px;font-size:0.6rem;margin-left:4px;">0</span></div>
         <div class="adm-tab" onclick="switchAdmTab('adm-checkin')">&#9989; Check-Ins</div>
       </div>
       <!-- ADD -->
@@ -983,6 +999,32 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
         </div>
         <div class="adm-q-list" id="admTeamList"></div>
       </div>
+
+      <!-- TEAM ALERTS: ANNOUNCEMENTS + ISSUE REPORTS -->
+      <div class="adm-tc" id="adm-alerts">
+        <div style="background:rgba(155,89,255,0.06);border:1px solid rgba(155,89,255,0.25);border-radius:4px;padding:1rem;margin-bottom:1.5rem;">
+          <label class="adm-label">Post a Team Announcement</label>
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.6rem;">Shows instantly at the top of the Team Vibe portal for everyone — great for shift changes, breaks, or venue updates.</div>
+          <textarea class="pm-inp" id="announceText" rows="3" placeholder="e.g. Break rotation starts at 2pm — Stewards report to Hall B" style="width:100%;resize:vertical;margin-bottom:0.6rem;"></textarea>
+          <button class="pm-btn" style="background:#9B59FF;border-color:#9B59FF;width:auto;padding:11px 28px;" onclick="postAnnouncement()">&#128276; Post Announcement</button>
+          <div class="pm-err" id="announceErr">Please type an announcement first.</div>
+          <div class="adm-success" id="announceSuccess">&#10003; Posted! Your team will see it right away.</div>
+        </div>
+        <div style="margin-bottom:0.75rem;">
+          <label class="adm-label">Announcements Sent</label>
+        </div>
+        <div class="adm-q-list" id="admAnnounceList" style="margin-bottom:2rem;"></div>
+
+        <div style="margin-bottom:0.75rem;display:flex;align-items:center;justify-content:space-between;">
+          <label class="adm-label" style="margin-bottom:0;">Issue Reports From Team</label>
+          <select class="adm-select" id="issueFilter" onchange="renderIssueReports()" style="width:auto;">
+            <option value="open">Open Only</option>
+            <option value="">All Reports</option>
+          </select>
+        </div>
+        <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.6rem;">Instant alerts your team sends you from the Team Vibe portal when something needs attention. Each one is also sent straight to Telegram.</div>
+        <div class="adm-q-list" id="admIssueList"></div>
+      </div>
       <div class="adm-tc" id="adm-checkin">
         <div style="background:rgba(61,184,113,0.06);border:1px solid rgba(61,184,113,0.25);border-radius:4px;padding:1.2rem;margin-bottom:1.5rem;text-align:center;">
           <label class="adm-label" style="display:block;margin-bottom:0.8rem;">Guest Check-In QR Code</label>
@@ -1108,7 +1150,7 @@ const GUESTS=[
 // the public page.
 const DB_API = "/api/db";
 
-let DB = {questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}};
+let DB = {questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[]};
 
 async function loadDB(){
   try{
@@ -1182,7 +1224,7 @@ function restoreBackup(event){
       event.target.value='';
       return;
     }
-    DB = Object.assign({questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}}, parsed);
+    DB = Object.assign({questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[]}, parsed);
     const saved=await saveDB();
     event.target.value='';
     if(saved){
@@ -1250,7 +1292,7 @@ async function adminLogin(){
     // Load DB in background while showing welcome popup
     populateAdmSelects();
     document.getElementById('admQList').innerHTML='Loading...';
-    loadDB().then(()=>{renderAdminQ();updateAdmStats();updateCfgBadge();updateTeamBadge();populateAdmSelects();});
+    loadDB().then(()=>{renderAdminQ();updateAdmStats();updateCfgBadge();updateTeamBadge();updateIssueBadge();populateAdmSelects();});
     // Show welcome popup first
     showPM('pm-admin-welcome');
   }else{document.getElementById('adminErr').style.display='block';}
@@ -1280,6 +1322,7 @@ function roleOptionsHtml(selected){
 }
 let changingRoleIds = new Set();
 function renderTeamRoster(){
+  renderTeamAnnouncements();
   const list=document.getElementById('teamRosterList');
   const members=(DB.teamMembers||[]).slice().sort((a,b)=>a.name.localeCompare(b.name));
   if(!members.length){list.innerHTML='<div class="no-res">No team members have been added yet. Check back soon.</div>';return;}
@@ -1302,7 +1345,8 @@ function renderTeamRoster(){
         ? `<div style="text-align:left;background:rgba(255,255,255,0.05);border:1px solid rgba(255,200,87,0.3);border-radius:3px;padding:0.6rem 0.7rem;margin-top:0.6rem;font-size:0.72rem;line-height:1.6;white-space:pre-line;"><strong style="color:var(--gold);">Your Duties:</strong><br>${qHtml(duties)}</div>`
         : '';
       const changeLink = `<div style="margin-top:0.6rem;"><a onclick="toggleChangeRole(${m.id})" style="color:var(--muted);font-size:0.68rem;text-decoration:underline;cursor:pointer;">Picked the wrong role? Change it</a></div>`;
-      body = statusLine + dutiesBlock + changeLink;
+      const shiftBlock = m.status==='approved' ? shiftHtml(m) : '';
+      body = statusLine + dutiesBlock + shiftBlock + changeLink;
     }
     return `<div class="tr-card">
       <img class="tr-photo" src="${m.photo}"/>
@@ -1343,6 +1387,159 @@ async function chooseTeamRole(id){
   }
   changingRoleIds.delete(id);
   renderTeamRoster();
+}
+
+/* ===== SHIFT / ROTATION TRACKER ===== */
+function fmtElapsed(ms){
+  const totalMin=Math.floor(ms/60000);
+  const h=Math.floor(totalMin/60), m=totalMin%60;
+  return h>0 ? (h+'h '+m+'m') : (m+'m');
+}
+function shiftHtml(m){
+  if(!m.shiftStart){
+    return `<div style="margin-top:0.7rem;"><button class="tr-confirm-btn" style="background:#3DB871;border-color:#3DB871;" onclick="startMyShift(${m.id})">&#9203; Start My Shift</button></div>`;
+  }
+  const elapsedMs = Date.now() - new Date(m.shiftStart).getTime();
+  const hours = elapsedMs/3600000;
+  const color = hours>=4 ? '#FF5A5A' : (hours>=3 ? '#FFC857' : '#7FE0A8');
+  const warn = hours>=4 ? '<div style="color:#FF5A5A;font-size:0.68rem;margin-top:3px;">&#9888; Past 4 hours — time to rotate/rest.</div>' : '';
+  return `<div style="margin-top:0.7rem;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);border-radius:3px;padding:0.55rem 0.7rem;">
+    <div style="font-size:0.7rem;color:var(--muted);">On shift since ${new Date(m.shiftStart).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</div>
+    <div style="font-size:0.95rem;font-weight:800;color:${color};">${fmtElapsed(elapsedMs)}</div>
+    ${warn}
+    <button class="tr-confirm-btn" style="background:transparent;border:1px solid rgba(255,255,255,0.25);color:var(--muted);margin-top:6px;padding:6px 14px;" onclick="endMyShift(${m.id})">End Shift</button>
+  </div>`;
+}
+async function startMyShift(id){
+  await loadDB();
+  const m=(DB.teamMembers||[]).find(t=>t.id===id);
+  if(m){ m.shiftStart=new Date().toISOString(); m.shiftEnd=null; await saveDB(); }
+  renderTeamRoster();
+}
+async function endMyShift(id){
+  await loadDB();
+  const m=(DB.teamMembers||[]).find(t=>t.id===id);
+  if(m){ m.shiftEnd=new Date().toISOString(); m.shiftStart=null; await saveDB(); }
+  renderTeamRoster();
+}
+
+/* ===== TEAM ANNOUNCEMENTS (ADMIN POSTS, TEAM SEES INSTANTLY) ===== */
+function renderTeamAnnouncements(){
+  const box=document.getElementById('teamAnnounceBoard');
+  if(!box) return;
+  const list=(DB.announcements||[]).slice().sort((a,b)=>b.id-a.id).slice(0,5);
+  if(!list.length){ box.innerHTML=''; return; }
+  box.innerHTML=`<div style="background:rgba(155,89,255,0.08);border:1px solid rgba(155,89,255,0.3);border-radius:4px;padding:0.8rem 0.9rem;margin-bottom:0.5rem;">
+    <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;letter-spacing:1px;text-transform:uppercase;font-size:0.75rem;color:#C9A8FF;margin-bottom:0.5rem;">&#128276; Announcements</div>
+    ${list.map(a=>`<div style="font-size:0.8rem;margin-bottom:0.5rem;padding-bottom:0.5rem;border-bottom:1px solid rgba(255,255,255,0.08);"><div>${qHtml(a.text)}</div><div style="font-size:0.65rem;color:var(--muted);margin-top:3px;">${new Date(a.id).toLocaleString()}</div></div>`).join('')}
+  </div>`;
+}
+async function postAnnouncement(){
+  const ta=document.getElementById('announceText');
+  const text=ta.value.trim();
+  const errEl=document.getElementById('announceErr'), okEl=document.getElementById('announceSuccess');
+  errEl.style.display='none'; okEl.style.display='none';
+  if(!text){errEl.style.display='block';return;}
+  const btn=event.target; btn.disabled=true; const orig=btn.textContent; btn.textContent='Posting...';
+  await loadDB();
+  if(!DB.announcements) DB.announcements=[];
+  DB.announcements.push({id:Date.now(), text});
+  const saved=await saveDB();
+  if(saved){
+    sendTG('📢 NAT-VIBE STUDIO — Team Announcement\n\n'+text);
+    ta.value='';
+    okEl.style.display='block';
+    setTimeout(()=>okEl.style.display='none',3000);
+    renderAdminAnnouncements();
+  }
+  btn.disabled=false; btn.textContent=orig;
+}
+function renderAdminAnnouncements(){
+  const box=document.getElementById('admAnnounceList');
+  if(!box) return;
+  const list=(DB.announcements||[]).slice().sort((a,b)=>b.id-a.id);
+  if(!list.length){box.innerHTML='<div style="color:var(--muted);padding:1rem;text-align:center;font-size:0.85rem;">No announcements posted yet.</div>';return;}
+  box.innerHTML=list.map(a=>`<div class="adm-q-item"><div><div class="adm-q-txt">${qHtml(a.text)}</div><div class="adm-q-gst">${new Date(a.id).toLocaleString()}</div></div><button class="adm-del" onclick="deleteAnnouncement(${a.id})">&#128465;</button></div>`).join('');
+}
+async function deleteAnnouncement(id){
+  if(!confirm('Delete this announcement?'))return;
+  await loadDB();
+  DB.announcements=(DB.announcements||[]).filter(a=>a.id!==id);
+  await saveDB();
+  renderAdminAnnouncements();
+}
+
+/* ===== REPORT AN ISSUE (TEAM -> ADMIN, INSTANT TELEGRAM ALERT) ===== */
+function populateIssueReporterSelect(){
+  const sel=document.getElementById('issueReporterSelect');
+  if(!sel) return;
+  const names=(DB.teamMembers||[]).slice().sort((a,b)=>a.name.localeCompare(b.name)).map(m=>m.name);
+  sel.innerHTML='<option value="">-- Your Name (optional) --</option>'+names.map(n=>`<option>${n}</option>`).join('');
+}
+function openIssueReport(){
+  populateIssueReporterSelect();
+  document.getElementById('issueMessage').value='';
+  document.getElementById('issueErr').style.display='none';
+  document.getElementById('issueSuccess').style.display='none';
+  document.getElementById('issueReportOverlay').classList.add('open');
+}
+function closeIssueReport(){
+  document.getElementById('issueReportOverlay').classList.remove('open');
+}
+async function submitIssueReport(){
+  const reporter=document.getElementById('issueReporterSelect').value;
+  const message=document.getElementById('issueMessage').value.trim();
+  const errEl=document.getElementById('issueErr'), okEl=document.getElementById('issueSuccess');
+  errEl.style.display='none'; okEl.style.display='none';
+  if(!message){errEl.style.display='block';return;}
+  const btn=event.target; btn.disabled=true; const orig=btn.textContent; btn.textContent='Sending...';
+  await loadDB();
+  if(!DB.issueReports) DB.issueReports=[];
+  const report={id:Date.now(), reporter: reporter||'(not given)', message, status:'open'};
+  DB.issueReports.push(report);
+  const saved=await saveDB();
+  if(saved){
+    sendTG('🚨 NAT-VIBE STUDIO — Issue Reported\n\n👤 '+(reporter||'(not given)')+'\n📝 '+message+'\n📅 '+new Date().toLocaleString());
+    okEl.style.display='block';
+    setTimeout(()=>{ okEl.style.display='none'; closeIssueReport(); },1800);
+  }
+  btn.disabled=false; btn.textContent=orig;
+}
+function updateIssueBadge(){
+  const badge=document.getElementById('issuePendingBadge');
+  if(!badge) return;
+  const n=(DB.issueReports||[]).filter(r=>r.status==='open').length;
+  badge.style.display = n>0 ? 'inline-block' : 'none';
+  badge.textContent = n;
+}
+function renderIssueReports(){
+  const box=document.getElementById('admIssueList');
+  if(!box) return;
+  updateIssueBadge();
+  const filter=document.getElementById('issueFilter').value;
+  let list=(DB.issueReports||[]).slice().sort((a,b)=>b.id-a.id);
+  if(filter==='open') list=list.filter(r=>r.status==='open');
+  if(!list.length){box.innerHTML='<div style="color:var(--muted);padding:1rem;text-align:center;font-size:0.85rem;">No issue reports.</div>';return;}
+  box.innerHTML=list.map(r=>{
+    const resolveBtn = r.status==='open'
+      ? `<button class="adm-del" style="background:rgba(61,184,113,0.2);color:#7FE0A8;" onclick="resolveIssueReport(${r.id})">&#9989; Mark Resolved</button>`
+      : `<span style="font-size:0.68rem;color:#7FE0A8;">&#9989; Resolved</span>`;
+    return `<div class="adm-q-item"><div><div class="adm-q-txt">${qHtml(r.message)}</div><div class="adm-q-gst">&#128100; ${r.reporter} &bull; ${new Date(r.id).toLocaleString()}</div></div><div style="display:flex;gap:6px;align-items:center;">${resolveBtn}<button class="adm-del" onclick="deleteIssueReport(${r.id})">&#128465;</button></div></div>`;
+  }).join('');
+}
+async function resolveIssueReport(id){
+  await loadDB();
+  const r=(DB.issueReports||[]).find(x=>x.id===id);
+  if(r) r.status='resolved';
+  await saveDB();
+  renderIssueReports();
+}
+async function deleteIssueReport(id){
+  if(!confirm('Delete this issue report?'))return;
+  await loadDB();
+  DB.issueReports=(DB.issueReports||[]).filter(r=>r.id!==id);
+  await saveDB();
+  renderIssueReports();
 }
 
 function populateDutiesRoleSelect(){
@@ -1732,13 +1929,14 @@ async function saveEditQuestion(){
   setTimeout(()=>{ closeEditQuestion(); switchAdmTab('adm-view'); },900);
 }
 function switchAdmTab(id){
-  document.querySelectorAll('.adm-tab').forEach((t,i)=>t.classList.toggle('active',['adm-add','adm-view','adm-guests','adm-contacts','adm-schedule','adm-media','adm-cfg','adm-site','adm-team','adm-checkin'][i]===id));
+  document.querySelectorAll('.adm-tab').forEach((t,i)=>t.classList.toggle('active',['adm-add','adm-view','adm-guests','adm-contacts','adm-schedule','adm-media','adm-cfg','adm-site','adm-team','adm-alerts','adm-checkin'][i]===id));
   document.querySelectorAll('.adm-tc').forEach(t=>t.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   if(id==='adm-view')renderAdminQ();
   if(id==='adm-guests'){renderAdminGuests();populateRemoveGuestSelect();renderRemovedGuests();}
   if(id==='adm-contacts'){populateContactGuestSelect();renderGuestContactsTable();}
   if(id==='adm-schedule'){populateScheduleSelect();renderAdminSchedules();}
+  if(id==='adm-alerts'){renderAdminAnnouncements();renderIssueReports();}
   if(id==='adm-media'){renderAdminGallery();renderAdminVideos();}
   if(id==='adm-cfg'){renderAdminApplications();}
   if(id==='adm-site'){loadSiteContentFields();renderAdminMediaPartners();renderAdminSponsors();}
@@ -2195,8 +2393,13 @@ function allGuestNames(){
 }
 function populateScheduleSelect(){
   const sel=document.getElementById('schedGuestSel');
+  const scheduled=new Set(Object.keys(DB.schedules||{}).filter(n=>DB.schedules[n] && (DB.schedules[n].date||DB.schedules[n].time)));
+  const available=allGuestNames().filter(n=>!scheduled.has(n));
   sel.innerHTML='<option value="">-- Choose a Guest --</option>';
-  allGuestNames().forEach(n=>{sel.innerHTML+=`<option>${n}</option>`;});
+  available.forEach(n=>{sel.innerHTML+=`<option>${n}</option>`;});
+  document.getElementById('schedDate').value='';
+  document.getElementById('schedStart').value='';
+  document.getElementById('schedEnd').value='';
   sel.onchange=()=>{
     const sch=(DB.schedules||{})[sel.value];
     document.getElementById('schedDate').value = sch?sch.date||'':'';
@@ -2220,6 +2423,7 @@ async function saveSchedule(){
   setTimeout(()=>s.style.display='none',3000);
   renderAdminSchedules();
   refreshAllGuestSchedules();
+  populateScheduleSelect();
   btn.disabled=false; btn.textContent=orig;
 }
 async function removeSchedule(name){
@@ -2228,6 +2432,7 @@ async function removeSchedule(name){
   await saveDB();
   renderAdminSchedules();
   refreshAllGuestSchedules();
+  populateScheduleSelect();
 }
 function renderAdminSchedules(){
   const list=document.getElementById('admSchedList');
@@ -2664,6 +2869,12 @@ function renderSponsorsSection(){
 }
 
 window.addEventListener('DOMContentLoaded', initDynamicGuests);
+window.addEventListener('DOMContentLoaded', ()=>{
+  setInterval(()=>{
+    const el=document.getElementById('pm-team-roster');
+    if(el && el.style.display!=='none') renderTeamRoster();
+  }, 30000);
+});
 
 /* ===== CALL FOR GUEST ===== */
 function cfgWordCount(){
