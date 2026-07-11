@@ -2842,10 +2842,11 @@ const FORMS_PASS="NATVIBE";
 let fhAuthed=false;
 
 const STEWARD_FIELDS=[
-  {id:'name', label:'Your Full Name (I have acted as a steward)', type:'text'},
-  {id:'appRef', label:'Application Reference Number', type:'text'},
-  {id:'email', label:'Email', type:'text'},
-  {id:'phone', label:'Telephone', type:'text'},
+  {id:'name', label:'Your Full Name (I have acted as a steward)', type:'text', placeholder:'e.g. John Smith'},
+  {id:'recordTitle', label:'Record Title', type:'text', placeholder:'e.g. Longest Interview Marathon'},
+  {id:'appRef', label:'Application Reference Number', type:'text', placeholder:'Found in emails from Guinness World Records'},
+  {id:'email', label:'Email', type:'text', placeholder:'e.g. name@email.com'},
+  {id:'phone', label:'Telephone', type:'text', placeholder:'e.g. 024 123 4567'},
   {id:'city', label:'City', type:'text'},
   {id:'country', label:'Country', type:'text'},
   {id:'region', label:'State/Province/Region', type:'text'},
@@ -2854,16 +2855,18 @@ const STEWARD_FIELDS=[
   {id:'totalObserved', label:'How many participants did you observe in total, and how did you count them?', type:'textarea'},
   {id:'fullyParticipated', label:'How many participated fully, as per the specific guidelines of the record?', type:'textarea'},
   {id:'disqualified', label:'How many participants did you have to disqualify, and why?', type:'textarea'},
-  {id:'signature', label:'Sign Here (type your full name as your signature)', type:'text'}
+  {id:'signature', label:'Sign Here (type your full name as your signature — all signatures must be handwritten on the official copy)', type:'text', placeholder:'e.g. John Smith'},
+  {id:'date', label:'Date', type:'date'}
 ];
 const WITNESS_FIELDS=[
   {id:'firstName', label:'First Name', type:'text'},
   {id:'lastName', label:'Last Name', type:'text'},
   {id:'organisation', label:'Organisation', type:'text'},
   {id:'nationality', label:'Nationality', type:'text'},
-  {id:'email', label:'Email', type:'text'},
-  {id:'phone', label:'Telephone', type:'text'},
-  {id:'appRef', label:'Application Reference Number', type:'text'},
+  {id:'email', label:'Email', type:'text', placeholder:'e.g. name@email.com'},
+  {id:'phone', label:'Telephone', type:'text', placeholder:'e.g. 024 123 4567'},
+  {id:'recordTitle', label:'Record Title', type:'text', placeholder:'e.g. Longest Interview Marathon'},
+  {id:'appRef', label:'Application Reference Number', type:'text', placeholder:'Found in emails from Guinness World Records'},
   {id:'observed', label:'What did you see / measure / evaluate as a witness? Please provide details of the record guidelines you witnessed being followed', type:'textarea'},
   {id:'expertise', label:'My field of expertise is (reason for witnessing the record attempt)', type:'textarea'},
   {id:'finalMeasurement', label:'Final Measurement', type:'text'},
@@ -2871,16 +2874,18 @@ const WITNESS_FIELDS=[
   {id:'city', label:'City/Town', type:'text'},
   {id:'country', label:'Country', type:'text'},
   {id:'when', label:'When were you present at the record attempt? (include dates and times)', type:'textarea'},
-  {id:'signature', label:'Sign Here (type your full name as your signature)', type:'text'}
+  {id:'signature', label:'Sign Here (type your full name as your signature — all signatures must be handwritten on the official copy)', type:'text', placeholder:'e.g. Jane White'},
+  {id:'date', label:'Date', type:'date'}
 ];
 const TIMEKEEPER_FIELDS=[
   {id:'firstName', label:'First Name', type:'text'},
   {id:'lastName', label:'Last Name', type:'text'},
   {id:'organisation', label:'Organisation', type:'text'},
   {id:'nationality', label:'Nationality', type:'text'},
-  {id:'email', label:'Email', type:'text'},
-  {id:'phone', label:'Telephone', type:'text'},
-  {id:'appRef', label:'Application Reference Number', type:'text'},
+  {id:'email', label:'Email', type:'text', placeholder:'e.g. name@email.com'},
+  {id:'phone', label:'Telephone', type:'text', placeholder:'e.g. 024 123 4567'},
+  {id:'recordTitle', label:'Record Title', type:'text', placeholder:'e.g. Longest Interview Marathon'},
+  {id:'appRef', label:'Application Reference Number', type:'text', placeholder:'Found in emails from Guinness World Records'},
   {id:'roleDesc', label:'Please describe your role on the day, including the equipment you used to time the attempt', type:'textarea'},
   {id:'expertise', label:'My expertise in timekeeping is', type:'textarea'},
   {id:'finalMeasurement', label:'Final Measurement', type:'text'},
@@ -2888,15 +2893,53 @@ const TIMEKEEPER_FIELDS=[
   {id:'city', label:'City/Town', type:'text'},
   {id:'country', label:'Country', type:'text'},
   {id:'when', label:'When were you present at the record attempt? (include dates and times)', type:'textarea'},
-  {id:'signature', label:'Sign Here (type your full name as your signature)', type:'text'}
+  {id:'signature', label:'Sign Here (type your full name as your signature — all signatures must be handwritten on the official copy)', type:'text'},
+  {id:'date', label:'Date', type:'date'}
+];
+
+const COVER_FIELDS=[
+  {id:'recordTitle', label:'Record Title', type:'text', placeholder:'e.g. Tallest Dog'},
+  {id:'appRef', label:'Application Reference Number', type:'text', placeholder:'Can be found in emails from Guinness World Records'},
+  {id:'currentRecord', label:'Current Record or "minimum" (prior to your record attempt)', type:'textarea', placeholder:'e.g. 453.59 kg — details of the current record/minimum can be found on your application'},
+  {id:'attemptResult', label:'Your Attempt Results (after your record attempt)', type:'textarea', placeholder:'e.g. 680.39 kg — please write in metric terms unless specified otherwise in your record guidelines'},
+  {id:'holderFirstName', label:'New Record Holder — First Name', type:'text'},
+  {id:'holderLastName', label:'New Record Holder — Last Name', type:'text'},
+  {id:'holderOrg', label:'Organization / Team Name', type:'text'},
+  {id:'holderNationality', label:'Nationality', type:'text'},
+  {id:'gender', label:'Gender', type:'radio', options:['Male','Female','Other']},
+  {id:'location', label:'Location of Attempt', type:'text'},
+  {id:'startDate', label:'Start Date of Attempt', type:'date'},
+  {id:'endDate', label:'End Date of Attempt', type:'date'},
+  {id:'details', label:'Tell us more about your attempt — why you decided to break the record, description of the event and preparations, and how the record was measured (e.g. with a surveyor\'s wheel, using turnstiles, etc.)', type:'textarea', rows:6},
+  {id:'evWitness', label:"Witnesses' statement", type:'checkbox'},
+  {id:'evWitnessSignedBy', label:'Signed by (if witness statement is attached as evidence)', type:'text'},
+  {id:'evVideo', label:'Video of the record measurement', type:'checkbox'},
+  {id:'evPhotos', label:'Photographs of the record', type:'checkbox'},
+  {id:'evSpecific', label:'Specific evidence as requested in the guidelines for this record attempt', type:'checkbox'},
+  {id:'evOther', label:'Other material (please specify below)', type:'checkbox'},
+  {id:'evOtherSpecify', label:'If "Other material" — please specify', type:'textarea'},
+  {id:'doneFirstName', label:'This cover letter was completed by — First Name', type:'text'},
+  {id:'doneLastName', label:'Last Name', type:'text'},
+  {id:'doneDate', label:'Date', type:'date'}
 ];
 
 function fhInputHtml(prefix, f){
   const elId=prefix+'-'+f.id;
+  const ph = f.placeholder ? ` placeholder="${f.placeholder.replace(/"/g,'&quot;')}"` : '';
   if(f.type==='textarea'){
-    return `<div style="margin-bottom:0.7rem;"><label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">${f.label}</label><textarea class="pm-inp" id="${elId}" rows="3" style="width:100%;resize:vertical;"></textarea></div>`;
+    return `<div style="margin-bottom:0.7rem;"><label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">${f.label}</label><textarea class="pm-inp" id="${elId}" rows="${f.rows||3}" style="width:100%;resize:vertical;"${ph}></textarea></div>`;
   }
-  return `<div style="margin-bottom:0.7rem;"><label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">${f.label}</label><input type="text" class="pm-inp" id="${elId}" style="width:100%;"/></div>`;
+  if(f.type==='date'){
+    return `<div style="margin-bottom:0.7rem;"><label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">${f.label}</label><input type="date" class="pm-inp" id="${elId}" style="width:100%;"/></div>`;
+  }
+  if(f.type==='checkbox'){
+    return `<div style="margin-bottom:0.7rem;"><label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-size:0.82rem;color:var(--white);"><input type="checkbox" id="${elId}" style="width:17px;height:17px;flex-shrink:0;"/> <span>${f.label}</span></label></div>`;
+  }
+  if(f.type==='radio'){
+    const opts=(f.options||[]).map((o,i)=>`<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.82rem;margin-right:16px;"><input type="radio" name="${elId}" value="${o}" id="${elId}-${i}"/> ${o}</label>`).join('');
+    return `<div style="margin-bottom:0.7rem;"><label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:6px;">${f.label}</label><div style="display:flex;flex-wrap:wrap;">${opts}</div></div>`;
+  }
+  return `<div style="margin-bottom:0.7rem;"><label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">${f.label}</label><input type="text" class="pm-inp" id="${elId}" style="width:100%;"${ph}/></div>`;
 }
 function renderGenericFormFields(prefix, fields){
   document.getElementById('fh-'+prefix+'-fields').innerHTML=fields.map(f=>fhInputHtml(prefix,f)).join('');
@@ -2926,13 +2969,14 @@ function openFormsHub(){
 function closeFormsHub(){
   document.getElementById('formsHubOverlay').classList.remove('open');
 }
-const FH_STAGE_IDS=['fh-menu-stage','fh-steward','fh-witness','fh-timekeeper','fh-logbook','fh-qtracker'];
+const FH_STAGE_IDS=['fh-menu-stage','fh-steward','fh-witness','fh-timekeeper','fh-cover','fh-logbook','fh-qtracker'];
 async function fhShowStage(id){
   FH_STAGE_IDS.forEach(s=>document.getElementById(s).style.display='none');
   document.getElementById(id).style.display='block';
   if(id==='fh-steward'){ renderGenericFormFields('steward', STEWARD_FIELDS); document.getElementById('fh-steward-err').style.display='none'; document.getElementById('fh-steward-success').style.display='none'; }
   if(id==='fh-witness'){ renderGenericFormFields('witness', WITNESS_FIELDS); document.getElementById('fh-witness-err').style.display='none'; document.getElementById('fh-witness-success').style.display='none'; }
   if(id==='fh-timekeeper'){ renderGenericFormFields('timekeeper', TIMEKEEPER_FIELDS); document.getElementById('fh-timekeeper-err').style.display='none'; document.getElementById('fh-timekeeper-success').style.display='none'; }
+  if(id==='fh-cover'){ renderGenericFormFields('cover', COVER_FIELDS); document.getElementById('fh-cover-err').style.display='none'; document.getElementById('fh-cover-success').style.display='none'; }
   if(id==='fh-logbook'){ await loadDB(); lbSetType('activity'); renderLogbookList(); }
   if(id==='fh-qtracker'){ await loadDB(); qtPopulateGuestSelect(); }
 }
@@ -2980,25 +3024,49 @@ function buildStatementPDF(formTitle, fields, values){
   doc.setTextColor(0);
   return doc;
 }
-async function submitGenericForm(prefix, fields, formTitle){
+async function submitGenericForm(prefix, fields, formTitle, requiredIds){
   const values={};
-  fields.forEach(f=>{ values[f.id]=document.getElementById(prefix+'-'+f.id).value.trim(); });
+  fields.forEach(f=>{
+    const elId=prefix+'-'+f.id;
+    if(f.type==='checkbox'){
+      const el=document.getElementById(elId);
+      values[f.id]= el && el.checked ? 'Yes' : 'No';
+    }else if(f.type==='radio'){
+      const checked=document.querySelector(`input[name="${elId}"]:checked`);
+      values[f.id]= checked ? checked.value : '';
+    }else{
+      const el=document.getElementById(elId);
+      values[f.id]= el ? el.value.trim() : '';
+    }
+  });
   const errEl=document.getElementById('fh-'+prefix+'-err');
   const okEl=document.getElementById('fh-'+prefix+'-success');
   errEl.style.display='none'; okEl.style.display='none';
-  const nameField=fields.find(f=>f.id==='name'||f.id==='firstName');
-  const sigField=fields.find(f=>f.id==='signature');
-  const nameVal=nameField?values[nameField.id]:'';
-  const sigVal=sigField?values[sigField.id]:'';
-  if(!nameVal||!sigVal){ errEl.style.display='block'; return; }
+  let nameVal, missingRequired=false;
+  if(requiredIds && requiredIds.length){
+    missingRequired = requiredIds.some(id=>!values[id]);
+    nameVal = values[requiredIds[0]] || formTitle;
+  }else{
+    const nameField=fields.find(f=>f.id==='name'||f.id==='firstName');
+    const sigField=fields.find(f=>f.id==='signature');
+    nameVal=nameField?values[nameField.id]:'';
+    const sigVal=sigField?values[sigField.id]:'';
+    missingRequired = !nameVal || !sigVal;
+  }
+  if(missingRequired){ errEl.style.display='block'; return; }
   const btn=event.target; btn.disabled=true; const orig=btn.textContent; btn.textContent='Sending...';
   try{
     const doc=buildStatementPDF(formTitle, fields, values);
     const blob=doc.output('blob');
-    const fname=formTitle.replace(/\s+/g,'_').toLowerCase()+'-'+nameVal.replace(/[^a-z0-9]/gi,'_').toLowerCase()+'.pdf';
+    const fname=formTitle.replace(/\s+/g,'_').toLowerCase()+'-'+String(nameVal).replace(/[^a-z0-9]/gi,'_').toLowerCase()+'.pdf';
     await sendTGDocument(blob, fname, '📋 '+formTitle+' submitted by '+nameVal);
     okEl.style.display='block';
-    fields.forEach(f=>{ const el=document.getElementById(prefix+'-'+f.id); if(el) el.value=''; });
+    fields.forEach(f=>{
+      const elId=prefix+'-'+f.id;
+      if(f.type==='checkbox'){ const el=document.getElementById(elId); if(el) el.checked=false; }
+      else if(f.type==='radio'){ document.querySelectorAll(`input[name="${elId}"]`).forEach(r=>r.checked=false); }
+      else{ const el=document.getElementById(elId); if(el) el.value=''; }
+    });
   }catch(e){
     errEl.textContent='Something went wrong sending the form. Please try again.';
     errEl.style.display='block';
@@ -3019,12 +3087,12 @@ function lbSetType(type){
   const container=document.getElementById('fh-logbook-fields');
   const witnessRows = `
       <div style="display:flex;gap:8px;margin-top:0.7rem;">
-        <div style="flex:1;"><label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">Witness 1 — Print Name</label><input type="text" class="pm-inp" id="lb-w1name" style="width:100%;"/></div>
-        <div style="flex:1;"><label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">Witness 1 — Signature</label><input type="text" class="pm-inp" id="lb-w1sign" style="width:100%;"/></div>
+        <div style="flex:1;"><label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">Witness 1 — Print Name</label><input type="text" class="pm-inp" id="lb-w1name" placeholder="e.g. JOHN SMITH" style="width:100%;"/></div>
+        <div style="flex:1;"><label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">Witness 1 — Signature</label><input type="text" class="pm-inp" id="lb-w1sign" placeholder="e.g. John Smith" style="width:100%;"/></div>
       </div>
       <div style="display:flex;gap:8px;margin-top:0.7rem;">
-        <div style="flex:1;"><label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">Witness 2 — Print Name</label><input type="text" class="pm-inp" id="lb-w2name" style="width:100%;"/></div>
-        <div style="flex:1;"><label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">Witness 2 — Signature</label><input type="text" class="pm-inp" id="lb-w2sign" style="width:100%;"/></div>
+        <div style="flex:1;"><label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">Witness 2 — Print Name</label><input type="text" class="pm-inp" id="lb-w2name" placeholder="e.g. JANE WHITE" style="width:100%;"/></div>
+        <div style="flex:1;"><label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">Witness 2 — Signature</label><input type="text" class="pm-inp" id="lb-w2sign" placeholder="e.g. Jane White" style="width:100%;"/></div>
       </div>`;
   if(type==='activity'){
     container.innerHTML = `
@@ -3032,8 +3100,10 @@ function lbSetType(type){
         <div style="flex:1;"><label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">Start Time</label><input type="time" class="pm-inp" id="lb-start" style="width:100%;"/></div>
         <div style="flex:1;"><label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">Finish Time</label><input type="time" class="pm-inp" id="lb-finish" style="width:100%;"/></div>
       </div>
-      <div style="margin-top:0.7rem;"><label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">Accumulated Rest (minutes)</label><input type="text" class="pm-inp" id="lb-accrest" style="width:100%;"/></div>
-      ${witnessRows}`;
+      <div style="margin-top:0.7rem;"><label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">Completed Hours &amp; Minutes (hh:mm)</label><input type="text" class="pm-inp" id="lb-completed" placeholder="e.g. 4:00" style="width:100%;"/></div>
+      <div style="margin-top:0.7rem;"><label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">Accumulated Rest (minutes)</label><input type="text" class="pm-inp" id="lb-accrest" placeholder="e.g. 20" style="width:100%;"/></div>
+      ${witnessRows}
+      <div style="font-size:0.7rem;color:var(--muted);margin-top:0.6rem;">**You only accrue 5 minutes rest time after each uninterrupted hour of activity completed.</div>`;
   }else{
     container.innerHTML = `
       <div style="display:flex;gap:8px;">
@@ -3041,11 +3111,12 @@ function lbSetType(type){
         <div style="flex:1;"><label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">Finish Time</label><input type="time" class="pm-inp" id="lb-finish" style="width:100%;"/></div>
       </div>
       <div style="display:flex;gap:8px;margin-top:0.7rem;">
-        <div style="flex:1;"><label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">Total Rest Time Available (min)</label><input type="text" class="pm-inp" id="lb-totalvalid" style="width:100%;"/></div>
-        <div style="flex:1;"><label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">Taken Now (min)</label><input type="text" class="pm-inp" id="lb-takennow" style="width:100%;"/></div>
+        <div style="flex:1;"><label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">Total Rest Time Available (min)</label><input type="text" class="pm-inp" id="lb-totalvalid" placeholder="e.g. 20" style="width:100%;"/></div>
+        <div style="flex:1;"><label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">Taken Now (min)</label><input type="text" class="pm-inp" id="lb-takennow" placeholder="e.g. 5" style="width:100%;"/></div>
       </div>
-      <div style="margin-top:0.7rem;"><label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">Rest Time Carried Forward (min)</label><input type="text" class="pm-inp" id="lb-carried" style="width:100%;"/></div>
-      ${witnessRows}`;
+      <div style="margin-top:0.7rem;"><label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">Rest Time Carried Forward (min)</label><input type="text" class="pm-inp" id="lb-carried" placeholder="e.g. 15" style="width:100%;"/></div>
+      ${witnessRows}
+      <div style="font-size:0.7rem;color:var(--muted);margin-top:0.6rem;">*Witnesses cannot work for longer than 4 hours and can only return after a 4-hour break.</div>`;
   }
   document.getElementById('fh-logbook-err').style.display='none';
   document.getElementById('fh-logbook-success').style.display='none';
@@ -3073,7 +3144,7 @@ function buildLogbookEntryPDF(entry){
   doc.text((entry.type==='activity'?'Activity':'Rest')+' Sequence: '+entry.sequence, margin, y);
   y+=20;
   const rows = entry.type==='activity' ? [
-    ['Start Time', entry.start], ['Finish Time', entry.finish], ['Accumulated Rest (mm)', entry.accRest]
+    ['Start Time', entry.start], ['Finish Time', entry.finish], ['Completed Hours & Minutes (hh:mm)', entry.completed], ['Accumulated Rest (mm)', entry.accRest]
   ] : [
     ['Start', entry.start], ['Finish', entry.finish],
     ['Total Rest Time Available (min)', entry.totalValid], ['Taken Now (min)', entry.takenNow], ['Rest Time Carried Forward (min)', entry.carried]
@@ -3122,6 +3193,7 @@ async function submitLogbookEntry(){
     timestamp: new Date().toISOString()
   };
   if(lbCurrentType==='activity'){
+    entry.completed=document.getElementById('lb-completed').value.trim();
     entry.accRest=document.getElementById('lb-accrest').value.trim();
   }else{
     entry.totalValid=document.getElementById('lb-totalvalid').value.trim();
@@ -3321,6 +3393,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closePortal();});
         <button class="pm-btn" style="background:#FFC857;border-color:#FFC857;color:#1A0308;" onclick="fhShowStage('fh-steward')">&#128221; Steward Statement</button>
         <button class="pm-btn" style="background:#FFC857;border-color:#FFC857;color:#1A0308;" onclick="fhShowStage('fh-witness')">&#128065; Witness Statement</button>
         <button class="pm-btn" style="background:#FFC857;border-color:#FFC857;color:#1A0308;" onclick="fhShowStage('fh-timekeeper')">&#9200; Time Keeper Statement</button>
+        <button class="pm-btn" style="background:#FFC857;border-color:#FFC857;color:#1A0308;" onclick="fhShowStage('fh-cover')">&#128196; Cover Letter</button>
         <button class="pm-btn" style="background:#FFC857;border-color:#FFC857;color:#1A0308;" onclick="fhShowStage('fh-logbook')">&#128214; Activity Log Book</button>
         <button class="pm-btn" style="background:#3DB871;border-color:#3DB871;" onclick="fhShowStage('fh-qtracker')">&#9989; Question Tracker (Which Questions Were Asked)</button>
       </div>
@@ -3344,6 +3417,16 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closePortal();});
       <button class="pm-btn" style="background:#FFC857;border-color:#FFC857;color:#1A0308;margin-top:0.6rem;" onclick="submitGenericForm('witness', WITNESS_FIELDS, 'Witness Statement')">Submit &amp; Send PDF</button>
       <div class="pm-err" id="fh-witness-err">Please fill in your name and signature at least.</div>
       <div class="bm-success" id="fh-witness-success">&#10003; Submitted! A PDF copy has been sent to the admin.</div>
+    </div>
+
+    <!-- COVER LETTER -->
+    <div id="fh-cover" style="display:none;">
+      <a onclick="fhBackToMenu()" style="color:var(--muted);font-size:0.78rem;cursor:pointer;display:inline-block;margin-bottom:0.8rem;">&#8592; Back to Forms Menu</a>
+      <h3 style="color:var(--gold);">&#128196; Cover Letter</h3>
+      <div id="fh-cover-fields"></div>
+      <button class="pm-btn" style="background:#FFC857;border-color:#FFC857;color:#1A0308;margin-top:0.6rem;" onclick="submitGenericForm('cover', COVER_FIELDS, 'Cover Letter', ['recordTitle','doneFirstName','doneLastName'])">Submit &amp; Send PDF</button>
+      <div class="pm-err" id="fh-cover-err">Please fill in the Record Title and who completed this cover letter (first &amp; last name) at least.</div>
+      <div class="bm-success" id="fh-cover-success">&#10003; Submitted! A PDF copy has been sent to the admin.</div>
     </div>
 
     <!-- TIME KEEPER -->
