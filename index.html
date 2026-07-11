@@ -267,7 +267,7 @@ footer{background:#0D0105;padding:3.5rem 3rem 1.5rem;border-top:2px solid var(--
 .g-book-btn:hover{background:rgba(46,155,255,0.25);}
 
 /* BOOKING MODAL */
-.book-modal-box{background:#060D1A;border:1px solid rgba(212,175,55,0.3);border-top:3px solid var(--gold);border-radius:6px;max-width:420px;width:100%;padding:2rem;text-align:left;}
+.book-modal-box{background:#060D1A;border:1px solid rgba(212,175,55,0.3);border-top:3px solid var(--gold);border-radius:6px;max-width:420px;width:100%;max-height:90vh;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:2rem;text-align:left;}
 .book-modal-box h3{font-family:"Bebas Neue",sans-serif;font-size:1.5rem;letter-spacing:2px;color:var(--gold);margin-bottom:0.3rem;}
 .book-modal-box .bm-guest{font-size:0.85rem;color:var(--muted);margin-bottom:1.5rem;}
 .book-modal-box .bm-guest strong{color:var(--white);}
@@ -696,6 +696,7 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
         <div class="adm-tab active" onclick="switchAdmTab('adm-add')">&#43; Add Questions</div>
         <div class="adm-tab" onclick="switchAdmTab('adm-view')">&#128203; View All</div>
         <div class="adm-tab" onclick="switchAdmTab('adm-guests')">&#128247; Manage Guests</div>
+        <div class="adm-tab" onclick="switchAdmTab('adm-contacts')">&#128222; Contacts</div>
         <div class="adm-tab" onclick="switchAdmTab('adm-schedule')">&#128197; Schedule</div>
         <div class="adm-tab" onclick="switchAdmTab('adm-media')">&#127916; Gallery &amp; Videos</div>
         <div class="adm-tab" onclick="switchAdmTab('adm-cfg')">&#128221; Call for Guest <span id="cfgPendingBadge" style="display:none;background:var(--red);color:#fff;border-radius:10px;padding:1px 7px;font-size:0.6rem;margin-left:4px;">0</span></div>
@@ -758,6 +759,41 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
 
         <div class="adm-label" style="margin-bottom:0.75rem;">Guests Added via Dashboard</div>
         <div class="adm-q-list" id="admGuestList"></div>
+      </div>
+
+      <!-- GUEST CONTACTS (ADMIN-ONLY, NEVER SHOWN ON PUBLIC SITE) -->
+      <div class="adm-tc" id="adm-contacts">
+        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(212,175,55,0.2);padding:1.25rem;border-radius:4px;margin-bottom:1.5rem;">
+          <div class="adm-label" style="margin-bottom:0.75rem;">Add / Update Guest Contact</div>
+          <p style="color:var(--muted);font-size:0.78rem;margin-bottom:0.75rem;">Private admin info only &mdash; contact &amp; location are never shown on the public website or guest portal. Everything saved here also appears in the spreadsheet below for bulk SMS.</p>
+          <select class="adm-select" id="contactGuestSel" style="margin-bottom:0.6rem;"><option value="">-- Choose a Guest --</option></select>
+          <input type="tel" class="pm-inp" id="contactPhone" placeholder="Phone Number (e.g. 024 123 4567)" style="margin-bottom:0.6rem;"/>
+          <input type="text" class="pm-inp" id="contactLocation" placeholder="Location (e.g. Takoradi, Western Region)" style="margin-bottom:0.75rem;"/>
+          <button class="pm-btn gold" style="width:auto;padding:11px 28px;" onclick="saveGuestContact()">&#43; Save Contact</button>
+          <div class="adm-success" id="contactSaveSuccess">&#10003; Contact saved to spreadsheet!</div>
+          <div class="pm-err" id="contactSaveErr" style="display:none;">Please choose a guest and enter a phone number.</div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;flex-wrap:wrap;gap:0.6rem;">
+          <div class="adm-label" style="margin-bottom:0;">All Guest Contacts (Spreadsheet)</div>
+          <div style="display:flex;gap:0.5rem;">
+            <button class="pm-btn" style="width:auto;padding:8px 18px;font-size:0.75rem;background:rgba(255,255,255,0.08);" onclick="copyAllContactNumbers()">&#128203; Copy All Numbers</button>
+            <button class="pm-btn gold" style="width:auto;padding:8px 18px;font-size:0.75rem;" onclick="downloadContactsCSV()">&#11015; Download Spreadsheet (CSV)</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto;border:1px solid rgba(212,175,55,0.2);border-radius:4px;">
+          <table style="width:100%;border-collapse:collapse;font-size:0.85rem;" id="contactsTable">
+            <thead>
+              <tr style="background:rgba(212,175,55,0.1);text-align:left;">
+                <th style="padding:10px 12px;">#</th>
+                <th style="padding:10px 12px;">Guest Name</th>
+                <th style="padding:10px 12px;">Contact</th>
+                <th style="padding:10px 12px;">Location</th>
+                <th style="padding:10px 12px;"></th>
+              </tr>
+            </thead>
+            <tbody id="contactsTableBody"></tbody>
+          </table>
+        </div>
       </div>
 
       <!-- SCHEDULE MANAGEMENT -->
@@ -1072,7 +1108,7 @@ const GUESTS=[
 // the public page.
 const DB_API = "/api/db";
 
-let DB = {questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[]};
+let DB = {questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}};
 
 async function loadDB(){
   try{
@@ -1146,7 +1182,7 @@ function restoreBackup(event){
       event.target.value='';
       return;
     }
-    DB = Object.assign({questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[]}, parsed);
+    DB = Object.assign({questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}}, parsed);
     const saved=await saveDB();
     event.target.value='';
     if(saved){
@@ -1696,11 +1732,12 @@ async function saveEditQuestion(){
   setTimeout(()=>{ closeEditQuestion(); switchAdmTab('adm-view'); },900);
 }
 function switchAdmTab(id){
-  document.querySelectorAll('.adm-tab').forEach((t,i)=>t.classList.toggle('active',['adm-add','adm-view','adm-guests','adm-schedule','adm-media','adm-cfg','adm-site','adm-team','adm-checkin'][i]===id));
+  document.querySelectorAll('.adm-tab').forEach((t,i)=>t.classList.toggle('active',['adm-add','adm-view','adm-guests','adm-contacts','adm-schedule','adm-media','adm-cfg','adm-site','adm-team','adm-checkin'][i]===id));
   document.querySelectorAll('.adm-tc').forEach(t=>t.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   if(id==='adm-view')renderAdminQ();
   if(id==='adm-guests'){renderAdminGuests();populateRemoveGuestSelect();renderRemovedGuests();}
+  if(id==='adm-contacts'){populateContactGuestSelect();renderGuestContactsTable();}
   if(id==='adm-schedule'){populateScheduleSelect();renderAdminSchedules();}
   if(id==='adm-media'){renderAdminGallery();renderAdminVideos();}
   if(id==='adm-cfg'){renderAdminApplications();}
@@ -2234,6 +2271,88 @@ function reorderGuestsBySchedule(){
   });
   withKeys.sort((a,b)=> a.key-b.key || a.idx-b.idx);
   withKeys.forEach(w=>primary.appendChild(w.card));
+}
+
+/* ===== GUEST CONTACTS (ADMIN-ONLY SPREADSHEET, NEVER RENDERED ON PUBLIC SITE) ===== */
+function populateContactGuestSelect(){
+  const sel=document.getElementById('contactGuestSel');
+  sel.innerHTML='<option value="">-- Choose a Guest --</option>';
+  allGuestNames().forEach(n=>{sel.innerHTML+=`<option>${n}</option>`;});
+  sel.onchange=()=>{
+    const c=(DB.guestContacts||{})[sel.value];
+    document.getElementById('contactPhone').value = c?c.contact||'':'';
+    document.getElementById('contactLocation').value = c?c.location||'':'';
+  };
+}
+async function saveGuestContact(){
+  const guest=document.getElementById('contactGuestSel').value;
+  const contact=document.getElementById('contactPhone').value.trim();
+  const location=document.getElementById('contactLocation').value.trim();
+  const errEl=document.getElementById('contactSaveErr'), okEl=document.getElementById('contactSaveSuccess');
+  errEl.style.display='none'; okEl.style.display='none';
+  if(!guest||!contact){errEl.style.display='block';return;}
+  if(!DB.guestContacts) DB.guestContacts={};
+  DB.guestContacts[guest]={contact,location};
+  await saveDB();
+  okEl.style.display='block';
+  setTimeout(()=>okEl.style.display='none',3000);
+  renderGuestContactsTable();
+}
+async function removeGuestContact(name){
+  if(!confirm('Remove the saved contact info for '+name+'?'))return;
+  delete (DB.guestContacts||{})[name];
+  await saveDB();
+  renderGuestContactsTable();
+  const sel=document.getElementById('contactGuestSel');
+  if(sel && sel.value===name){ document.getElementById('contactPhone').value=''; document.getElementById('contactLocation').value=''; }
+}
+function renderGuestContactsTable(){
+  const body=document.getElementById('contactsTableBody');
+  if(!body) return;
+  const contacts=DB.guestContacts||{};
+  const names=Object.keys(contacts).filter(n=>contacts[n] && contacts[n].contact);
+  if(!names.length){
+    body.innerHTML='<tr><td colspan="5" style="padding:1.5rem;text-align:center;color:var(--muted);font-size:0.85rem;">No guest contacts saved yet.</td></tr>';
+    return;
+  }
+  body.innerHTML=names.map((n,i)=>{
+    const c=contacts[n];
+    return `<tr style="border-top:1px solid rgba(255,255,255,0.08);">
+      <td style="padding:9px 12px;color:var(--muted);">${i+1}</td>
+      <td style="padding:9px 12px;font-weight:600;">${n}</td>
+      <td style="padding:9px 12px;">${c.contact||''}</td>
+      <td style="padding:9px 12px;">${c.location||''}</td>
+      <td style="padding:9px 12px;text-align:right;"><button class="adm-del" onclick="removeGuestContact('${n.replace(/'/g,"\\'")}')">&#128465;</button></td>
+    </tr>`;
+  }).join('');
+}
+function copyAllContactNumbers(){
+  const contacts=DB.guestContacts||{};
+  const numbers=Object.values(contacts).map(c=>c&&c.contact).filter(Boolean);
+  if(!numbers.length){alert('No contacts saved yet.');return;}
+  const text=numbers.join(', ');
+  navigator.clipboard.writeText(text).then(()=>{
+    alert(numbers.length+' phone number(s) copied — ready to paste into your bulk SMS tool.');
+  }).catch(()=>{
+    prompt('Copy these numbers manually:', text);
+  });
+}
+function downloadContactsCSV(){
+  const contacts=DB.guestContacts||{};
+  const names=Object.keys(contacts).filter(n=>contacts[n] && contacts[n].contact);
+  if(!names.length){alert('No contacts saved yet.');return;}
+  const escCsv=v=>'"'+String(v||'').replace(/"/g,'""')+'"';
+  let csv='Guest Name,Contact,Location\n';
+  names.forEach(n=>{
+    const c=contacts[n];
+    csv+=[escCsv(n),escCsv(c.contact),escCsv(c.location)].join(',')+'\n';
+  });
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download='natvibe-guest-contacts.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 /* ===== GALLERY & VIDEOS ===== */
