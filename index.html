@@ -814,9 +814,18 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
 
       <!-- SCHEDULE MANAGEMENT -->
       <div class="adm-tc" id="adm-schedule">
+        <div style="background:rgba(155,89,255,0.06);border:1px solid rgba(155,89,255,0.25);border-radius:4px;padding:0.9rem 1.1rem;margin-bottom:1.25rem;display:flex;align-items:center;gap:0.8rem;flex-wrap:wrap;">
+          <div>
+            <div class="adm-label" style="margin-bottom:2px;">Default Duration Per Guest</div>
+            <div style="font-size:0.7rem;color:var(--muted);">Used to auto-calculate each new guest's Start/End time from the one before.</div>
+          </div>
+          <input type="number" min="1" class="pm-inp" id="schedDefaultDuration" style="width:90px;" onchange="updateDefaultDuration()"/>
+          <span style="font-size:0.78rem;color:var(--muted);">minutes</span>
+        </div>
         <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(212,175,55,0.2);padding:1.25rem;border-radius:4px;margin-bottom:1.5rem;">
           <div class="adm-label" style="margin-bottom:0.75rem;">Set Interview Schedule</div>
           <select class="adm-select" id="schedGuestSel"><option value="">-- Choose a Guest --</option></select>
+          <div style="font-size:0.7rem;color:var(--muted);margin:0.5rem 0 0.75rem;">&#9203; Date/Start/End below are auto-filled to continue right after the last scheduled guest. Edit any of them if you need a different gap — the guest after this one will continue from whatever you save.</div>
           <div class="adm-label" style="font-size:0.78rem;margin-bottom:0.35rem;color:var(--muted);">Date</div>
           <input type="date" class="pm-inp" id="schedDate" style="margin-bottom:0.6rem;"/>
           <div style="display:flex;gap:0.6rem;margin-bottom:0.6rem;">
@@ -1150,7 +1159,7 @@ const GUESTS=[
 // the public page.
 const DB_API = "/api/db";
 
-let DB = {questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[]};
+let DB = {questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}};
 
 async function loadDB(){
   try{
@@ -1224,7 +1233,7 @@ function restoreBackup(event){
       event.target.value='';
       return;
     }
-    DB = Object.assign({questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[]}, parsed);
+    DB = Object.assign({questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}}, parsed);
     const saved=await saveDB();
     event.target.value='';
     if(saved){
@@ -2391,21 +2400,55 @@ function allGuestNames(){
   (DB.guests||[]).forEach(g=>names.push(g.name));
   return names;
 }
+function pad2(n){return String(n).padStart(2,'0');}
+function localDateStr(d){ return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
+function localTimeStr(d){ return pad2(d.getHours())+':'+pad2(d.getMinutes()); }
+function getDefaultDuration(){
+  const n=parseInt(DB.scheduleSettings && DB.scheduleSettings.defaultDuration);
+  return (n && n>0) ? n : 40;
+}
+async function updateDefaultDuration(){
+  const el=document.getElementById('schedDefaultDuration');
+  const n=parseInt(el.value);
+  if(!n||n<1){ el.value=getDefaultDuration(); return; }
+  if(!DB.scheduleSettings) DB.scheduleSettings={};
+  DB.scheduleSettings.defaultDuration=n;
+  await saveDB();
+  populateScheduleSelect();
+}
+/* Figures out where the next guest's slot should start/end: right after whichever
+   already-scheduled guest ends latest, using the default duration — unless nothing
+   is scheduled yet, in which case the day starts at 6:00 AM. */
+function computeNextScheduleSlot(){
+  const duration=getDefaultDuration();
+  const scheds=Object.values(DB.schedules||{}).filter(s=>s && s.date && s.end && /^\d{2}:\d{2}$/.test(s.end));
+  if(!scheds.length){
+    const today=new Date();
+    const dateStr=localDateStr(today);
+    const endDt=new Date(dateStr+'T06:00:00'); endDt.setMinutes(endDt.getMinutes()+duration);
+    return {date:dateStr, start:'06:00', end:localTimeStr(endDt)};
+  }
+  let latestTime=-Infinity;
+  scheds.forEach(s=>{
+    const t=new Date(s.date+'T'+s.end+':00').getTime();
+    if(!isNaN(t) && t>latestTime) latestTime=t;
+  });
+  const startDt=new Date(latestTime);
+  const endDt=new Date(latestTime); endDt.setMinutes(endDt.getMinutes()+duration);
+  return {date:localDateStr(startDt), start:localTimeStr(startDt), end:localTimeStr(endDt)};
+}
 function populateScheduleSelect(){
   const sel=document.getElementById('schedGuestSel');
   const scheduled=new Set(Object.keys(DB.schedules||{}).filter(n=>DB.schedules[n] && (DB.schedules[n].date||DB.schedules[n].time)));
   const available=allGuestNames().filter(n=>!scheduled.has(n));
   sel.innerHTML='<option value="">-- Choose a Guest --</option>';
   available.forEach(n=>{sel.innerHTML+=`<option>${n}</option>`;});
-  document.getElementById('schedDate').value='';
-  document.getElementById('schedStart').value='';
-  document.getElementById('schedEnd').value='';
-  sel.onchange=()=>{
-    const sch=(DB.schedules||{})[sel.value];
-    document.getElementById('schedDate').value = sch?sch.date||'':'';
-    document.getElementById('schedStart').value = sch?sch.start||'':'';
-    document.getElementById('schedEnd').value = sch?sch.end||'':'';
-  };
+  document.getElementById('schedDefaultDuration').value=getDefaultDuration();
+  const next=computeNextScheduleSlot();
+  document.getElementById('schedDate').value=next.date;
+  document.getElementById('schedStart').value=next.start;
+  document.getElementById('schedEnd').value=next.end;
+  sel.onchange=()=>{}; // date/start/end are auto-filled above; editing them here only affects this guest's slot
 }
 async function saveSchedule(){
   const guest=document.getElementById('schedGuestSel').value;
