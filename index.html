@@ -722,6 +722,7 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
         <div class="adm-tab" onclick="switchAdmTab('adm-view')">&#128203; View All</div>
         <div class="adm-tab" onclick="switchAdmTab('adm-guests')">&#128247; Manage Guests</div>
         <div class="adm-tab" onclick="switchAdmTab('adm-contacts')">&#128222; Contacts</div>
+        <div class="adm-tab" onclick="switchAdmTab('adm-notes')">&#128221; Notes</div>
         <div class="adm-tab" onclick="switchAdmTab('adm-schedule')">&#128197; Schedule</div>
         <div class="adm-tab" onclick="switchAdmTab('adm-media')">&#127916; Gallery &amp; Videos</div>
         <div class="adm-tab" onclick="switchAdmTab('adm-cfg')">&#128221; Call for Guest <span id="cfgPendingBadge" style="display:none;background:var(--red);color:#fff;border-radius:10px;padding:1px 7px;font-size:0.6rem;margin-left:4px;">0</span></div>
@@ -820,6 +821,19 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
             <tbody id="contactsTableBody"></tbody>
           </table>
         </div>
+      </div>
+
+      <!-- NOTES (FREEFORM, ADMIN-ONLY — e.g. sponsor leads: name, contact, what they want to sponsor) -->
+      <div class="adm-tc" id="adm-notes">
+        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(212,175,55,0.2);padding:1.25rem;border-radius:4px;margin-bottom:1.5rem;">
+          <div class="adm-label" style="margin-bottom:0.4rem;">Add a Note</div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">Private, admin-only scratchpad — jot down anything, e.g. a sponsor's name, contact, and what they'd like to sponsor. Never shown on the public website.</div>
+          <textarea class="pm-inp" id="adminNoteText" rows="4" placeholder="e.g. Kwame Mensah — 024 123 4567 — offering to sponsor 200 branded T-shirts" style="width:100%;resize:vertical;margin-bottom:0.6rem;"></textarea>
+          <button class="pm-btn gold" style="width:auto;padding:11px 28px;" onclick="addAdminNote()">&#43; Add Note</button>
+          <div class="pm-err" id="noteErr">Please type something first.</div>
+        </div>
+        <div class="adm-label" style="margin-bottom:0.75rem;">All Notes</div>
+        <div class="adm-q-list" id="admNotesList"></div>
       </div>
 
       <!-- SCHEDULE MANAGEMENT -->
@@ -1169,7 +1183,7 @@ const GUESTS=[
 // the public page.
 const DB_API = "/api/db";
 
-let DB = {questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}};
+let DB = {questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[]};
 
 async function loadDB(){
   try{
@@ -1243,7 +1257,7 @@ function restoreBackup(event){
       event.target.value='';
       return;
     }
-    DB = Object.assign({questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}}, parsed);
+    DB = Object.assign({questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[]}, parsed);
     const saved=await saveDB();
     event.target.value='';
     if(saved){
@@ -1948,12 +1962,13 @@ async function saveEditQuestion(){
   setTimeout(()=>{ closeEditQuestion(); switchAdmTab('adm-view'); },900);
 }
 function switchAdmTab(id){
-  document.querySelectorAll('.adm-tab').forEach((t,i)=>t.classList.toggle('active',['adm-add','adm-view','adm-guests','adm-contacts','adm-schedule','adm-media','adm-cfg','adm-site','adm-team','adm-alerts','adm-checkin'][i]===id));
+  document.querySelectorAll('.adm-tab').forEach((t,i)=>t.classList.toggle('active',['adm-add','adm-view','adm-guests','adm-contacts','adm-notes','adm-schedule','adm-media','adm-cfg','adm-site','adm-team','adm-alerts','adm-checkin'][i]===id));
   document.querySelectorAll('.adm-tc').forEach(t=>t.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   if(id==='adm-view')renderAdminQ();
   if(id==='adm-guests'){renderAdminGuests();populateRemoveGuestSelect();renderRemovedGuests();}
   if(id==='adm-contacts'){populateContactGuestSelect();renderGuestContactsTable();}
+  if(id==='adm-notes'){renderAdminNotes();}
   if(id==='adm-schedule'){populateScheduleSelect();renderAdminSchedules();}
   if(id==='adm-alerts'){renderAdminAnnouncements();renderIssueReports();}
   if(id==='adm-media'){renderAdminGallery();renderAdminVideos();}
@@ -2590,6 +2605,36 @@ function populateContactGuestSelect(){
     document.getElementById('contactLocation').value = c?c.location||'':'';
   };
 }
+/* ===== NOTES (FREEFORM, ADMIN-ONLY SCRATCHPAD — NEVER RENDERED ON PUBLIC SITE) ===== */
+async function addAdminNote(){
+  const ta=document.getElementById('adminNoteText');
+  const text=ta.value.trim();
+  const errEl=document.getElementById('noteErr');
+  errEl.style.display='none';
+  if(!text){errEl.style.display='block';return;}
+  const btn=event.target; btn.disabled=true; const orig=btn.textContent; btn.textContent='Saving...';
+  await loadDB();
+  if(!DB.adminNotes) DB.adminNotes=[];
+  DB.adminNotes.push({id:Date.now(), text});
+  const saved=await saveDB();
+  if(saved){ ta.value=''; renderAdminNotes(); }
+  btn.disabled=false; btn.textContent=orig;
+}
+function renderAdminNotes(){
+  const box=document.getElementById('admNotesList');
+  if(!box) return;
+  const list=(DB.adminNotes||[]).slice().sort((a,b)=>b.id-a.id);
+  if(!list.length){box.innerHTML='<div style="color:var(--muted);padding:1.5rem;text-align:center;font-size:0.85rem;">No notes yet.</div>';return;}
+  box.innerHTML=list.map(n=>`<div class="adm-q-item"><div><div class="adm-q-txt" style="white-space:pre-line;">${qHtml(n.text)}</div><div class="adm-q-gst">${new Date(n.id).toLocaleString()}</div></div><button class="adm-del" onclick="deleteAdminNote(${n.id})">&#128465;</button></div>`).join('');
+}
+async function deleteAdminNote(id){
+  if(!confirm('Delete this note?'))return;
+  await loadDB();
+  DB.adminNotes=(DB.adminNotes||[]).filter(n=>n.id!==id);
+  await saveDB();
+  renderAdminNotes();
+}
+
 async function saveGuestContact(){
   const guest=document.getElementById('contactGuestSel').value;
   const contact=document.getElementById('contactPhone').value.trim();
