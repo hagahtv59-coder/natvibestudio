@@ -657,7 +657,17 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
     </div>
   </div>
 
-  <!-- REPORT AN ISSUE -->
+  <!-- SWAP GUEST -->
+  <div class="site-popup-overlay" id="swapGuestOverlay" onclick="if(event.target===this)closeSwapGuest()">
+    <div class="book-modal-box" style="max-width:440px;">
+      <h3 style="color:#C9A8FF;">&#128260; Swap Guest</h3>
+      <div class="bm-guest">Replacing <strong id="swapOldNameLabel"></strong> for their slot on <strong id="swapSlotLabel"></strong>. The date and time stay exactly the same — only the guest changes. <strong id="swapOldNameLabel2"></strong> will become unscheduled so you can give them a new date/time later.</div>
+      <select class="adm-select" id="swapNewGuestSel" style="margin-bottom:0.6rem;"><option value="">-- Choose Replacement Guest --</option></select>
+      <button class="pm-btn" style="background:#9B59FF;border-color:#9B59FF;" onclick="confirmSwapGuest()">Confirm Swap</button>
+      <div class="pm-err" id="swapErr">Please choose a replacement guest.</div>
+      <div class="bm-success" id="swapSuccess">&#10003; Swapped! The slot now belongs to the new guest.</div>
+    </div>
+  </div>
   <div class="site-popup-overlay" id="issueReportOverlay" onclick="if(event.target===this)closeIssueReport()">
     <div class="book-modal-box" style="max-width:440px;">
       <h3 style="color:#FF8A8A;">&#128276; Report an Issue</h3>
@@ -2496,8 +2506,49 @@ function renderAdminSchedules(){
   list.innerHTML=names.map((n,i)=>{
     const s=sch[n];
     const timeStr = s.date ? [fmtSchedDate(s.date), s.start ? (s.end?(fmtSchedTime(s.start)+' - '+fmtSchedTime(s.end)+(s.crossesMidnight?' (next day)':'')):fmtSchedTime(s.start)) : s.time].filter(Boolean).join(' &bull; ') : (s.time||'');
-    return `<div class="adm-q-item"><div><div class="adm-q-txt" style="font-weight:700;">${i+1}. ${n}</div><div class="adm-q-gst">&#128197; ${timeStr}</div></div><button class="adm-del" onclick="removeSchedule('${n.replace(/'/g,"\\'")}')">&#128465; Remove</button></div>`;
+    return `<div class="adm-q-item"><div><div class="adm-q-txt" style="font-weight:700;">${i+1}. ${n}</div><div class="adm-q-gst">&#128197; ${timeStr}</div></div><div style="display:flex;gap:6px;"><button class="adm-del" style="background:rgba(155,89,255,0.2);color:#C9A8FF;" onclick="openSwapGuest('${n.replace(/'/g,"\\'")}')">&#128260; Swap</button><button class="adm-del" onclick="removeSchedule('${n.replace(/'/g,"\\'")}')">&#128465; Remove</button></div></div>`;
   }).join('');
+}
+let swapOldName=null;
+function openSwapGuest(oldName){
+  swapOldName=oldName;
+  const slot=(DB.schedules||{})[oldName];
+  if(!slot) return;
+  document.getElementById('swapOldNameLabel').textContent=oldName;
+  document.getElementById('swapOldNameLabel2').textContent=oldName;
+  const timeStr=[fmtSchedDate(slot.date), slot.start?(fmtSchedTime(slot.start)+' - '+fmtSchedTime(slot.end)+(slot.crossesMidnight?' (next day)':'')):''].filter(Boolean).join(' • ');
+  document.getElementById('swapSlotLabel').textContent=timeStr;
+  const scheduled=new Set(Object.keys(DB.schedules||{}).filter(n=>DB.schedules[n] && (DB.schedules[n].date||DB.schedules[n].time)));
+  const available=allGuestNames().filter(n=>!scheduled.has(n));
+  const sel=document.getElementById('swapNewGuestSel');
+  sel.innerHTML='<option value="">-- Choose Replacement Guest --</option>'+available.map(n=>`<option>${n}</option>`).join('');
+  document.getElementById('swapErr').style.display='none';
+  document.getElementById('swapSuccess').style.display='none';
+  document.getElementById('swapGuestOverlay').classList.add('open');
+}
+function closeSwapGuest(){
+  document.getElementById('swapGuestOverlay').classList.remove('open');
+  swapOldName=null;
+}
+async function confirmSwapGuest(){
+  const newGuest=document.getElementById('swapNewGuestSel').value;
+  const errEl=document.getElementById('swapErr'), okEl=document.getElementById('swapSuccess');
+  errEl.style.display='none'; okEl.style.display='none';
+  if(!newGuest || !swapOldName){ errEl.style.display='block'; return; }
+  const btn=event.target; btn.disabled=true; const orig=btn.textContent; btn.textContent='Swapping...';
+  await loadDB();
+  const slot=(DB.schedules||{})[swapOldName];
+  if(slot){
+    DB.schedules[newGuest]={...slot};
+    delete DB.schedules[swapOldName];
+    await saveDB();
+    okEl.style.display='block';
+    renderAdminSchedules();
+    refreshAllGuestSchedules();
+    populateScheduleSelect();
+    setTimeout(()=>{ closeSwapGuest(); }, 1500);
+  }
+  btn.disabled=false; btn.textContent=orig;
 }
 function refreshAllGuestSchedules(){
   document.querySelectorAll('#guests .g-card').forEach(card=>{
