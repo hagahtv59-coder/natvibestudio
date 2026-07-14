@@ -2182,7 +2182,7 @@ function scheduleHTML(name){
     const parts=[];
     if(sch.date) parts.push(fmtSchedDate(sch.date));
     if(sch.start){
-      const range = sch.end ? (fmtSchedTime(sch.start)+' - '+fmtSchedTime(sch.end)) : fmtSchedTime(sch.start);
+      const range = sch.end ? (fmtSchedTime(sch.start)+' - '+fmtSchedTime(sch.end)+(sch.crossesMidnight?' (next day)':'')) : fmtSchedTime(sch.start);
       parts.push(range);
     } else if(sch.time){
       parts.push(sch.time); // legacy free-text schedules saved before the date/start/end fields existed
@@ -2430,7 +2430,8 @@ function computeNextScheduleSlot(){
   }
   let latestTime=-Infinity;
   scheds.forEach(s=>{
-    const t=new Date(s.date+'T'+s.end+':00').getTime();
+    const endDateForCalc = s.endDate || s.date;
+    const t=new Date(endDateForCalc+'T'+s.end+':00').getTime();
     if(!isNaN(t) && t>latestTime) latestTime=t;
   });
   const startDt=new Date(latestTime);
@@ -2457,10 +2458,16 @@ async function saveSchedule(){
   const end=document.getElementById('schedEnd').value;
   if(!guest){alert('Please select a guest.');return;}
   if(!date||!start||!end){alert('Please set the date, start time, and end time.');return;}
-  if(end<=start){alert('End time must be after the start time.');return;}
+  if(end===start){alert('End time cannot be the same as the start time.');return;}
+  const crossesMidnight = end < start; // e.g. 11:20 PM -> 12:00 AM the next day
+  let endDate = date;
+  if(crossesMidnight){
+    const d=new Date(date+'T00:00:00'); d.setDate(d.getDate()+1);
+    endDate=localDateStr(d);
+  }
   const btn=event.target; btn.disabled=true; const orig=btn.textContent; btn.textContent='Saving...';
   if(!DB.schedules) DB.schedules={};
-  DB.schedules[guest]={date,start,end};
+  DB.schedules[guest]={date,start,end,endDate,crossesMidnight};
   await saveDB();
   const s=document.getElementById('schedSuccess');s.style.display='block';
   setTimeout(()=>s.style.display='none',3000);
@@ -2488,7 +2495,7 @@ function renderAdminSchedules(){
   if(!names.length){list.innerHTML='<div style="color:var(--muted);padding:1.5rem;text-align:center;font-size:0.85rem;">No schedules set yet.</div>';return;}
   list.innerHTML=names.map((n,i)=>{
     const s=sch[n];
-    const timeStr = s.date ? [fmtSchedDate(s.date), s.start ? (s.end?(fmtSchedTime(s.start)+' - '+fmtSchedTime(s.end)):fmtSchedTime(s.start)) : s.time].filter(Boolean).join(' &bull; ') : (s.time||'');
+    const timeStr = s.date ? [fmtSchedDate(s.date), s.start ? (s.end?(fmtSchedTime(s.start)+' - '+fmtSchedTime(s.end)+(s.crossesMidnight?' (next day)':'')):fmtSchedTime(s.start)) : s.time].filter(Boolean).join(' &bull; ') : (s.time||'');
     return `<div class="adm-q-item"><div><div class="adm-q-txt" style="font-weight:700;">${i+1}. ${n}</div><div class="adm-q-gst">&#128197; ${timeStr}</div></div><button class="adm-del" onclick="removeSchedule('${n.replace(/'/g,"\\'")}')">&#128465; Remove</button></div>`;
   }).join('');
 }
