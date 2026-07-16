@@ -804,7 +804,10 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
           <select class="adm-select" id="contactGuestSel" style="margin-bottom:0.6rem;"><option value="">-- Choose a Guest --</option></select>
           <input type="tel" class="pm-inp" id="contactPhone" placeholder="Phone Number (e.g. 024 123 4567)" style="margin-bottom:0.6rem;"/>
           <input type="text" class="pm-inp" id="contactLocation" placeholder="Location (e.g. Takoradi, Western Region)" style="margin-bottom:0.75rem;"/>
-          <button class="pm-btn gold" style="width:auto;padding:11px 28px;" onclick="saveGuestContact()">&#43; Save Contact &amp; Send SMS</button>
+          <div style="display:flex;gap:0.6rem;flex-wrap:wrap;">
+            <button class="pm-btn" style="width:auto;padding:11px 24px;background:rgba(255,255,255,0.08);" onclick="saveGuestContact(false)">&#43; Save Contact Only</button>
+            <button class="pm-btn gold" style="width:auto;padding:11px 24px;" onclick="saveGuestContact(true)">&#43; Save &amp; Send SMS</button>
+          </div>
           <div class="adm-success" id="contactSaveSuccess">&#10003; Contact saved to spreadsheet!</div>
           <div id="smsSendStatus" style="font-size:0.78rem;margin-top:6px;"></div>
           <div class="pm-err" id="contactSaveErr" style="display:none;">Please choose a guest and enter a phone number.</div>
@@ -2677,7 +2680,7 @@ async function saveSmsTemplate(){
   const ok=document.getElementById('smsTemplateSaved');
   ok.style.display='inline'; setTimeout(()=>ok.style.display='none',2500);
 }
-async function saveGuestContact(){
+async function saveGuestContact(sendSms){
   const guest=document.getElementById('contactGuestSel').value;
   const contact=document.getElementById('contactPhone').value.trim();
   const location=document.getElementById('contactLocation').value.trim();
@@ -2694,7 +2697,7 @@ async function saveGuestContact(){
   renderGuestContactsTable();
   populateContactGuestSelect();
   const tpl=(DB.smsSettings && DB.smsSettings.template) || '';
-  if(tpl.trim()){
+  if(sendSms && tpl.trim()){
     smsStatus.style.color='var(--muted)';
     smsStatus.textContent='Sending SMS...';
     const result=await sendSmsToPhone(contact, fillSmsTemplate(guest));
@@ -2705,6 +2708,9 @@ async function saveGuestContact(){
       smsStatus.style.color='#FF8A8A';
       smsStatus.textContent='⚠ Contact saved, but SMS failed: '+(result.error||'unknown error');
     }
+  }else if(sendSms && !tpl.trim()){
+    smsStatus.style.color='#FF8A8A';
+    smsStatus.textContent='⚠ Contact saved, but no Auto-SMS Message is set yet — add one above first.';
   }
   btn.disabled=false; btn.textContent=orig;
 }
