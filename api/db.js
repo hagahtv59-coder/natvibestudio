@@ -129,7 +129,8 @@ module.exports = async (req, res) => {
         sponsors: DB.sponsors || [], siteContent: DB.siteContent || {}, teamMembers: DB.teamMembers || [],
         checkins: DB.checkins || [], roleDuties: DB.roleDuties || {}, teamRoles: DB.teamRoles || [], logbook: DB.logbook || [],
         guestContacts: DB.guestContacts || {}, announcements: DB.announcements || [], issueReports: DB.issueReports || [],
-        scheduleSettings: DB.scheduleSettings || { defaultDuration: 40 }, adminNotes: DB.adminNotes || []
+        scheduleSettings: DB.scheduleSettings || { defaultDuration: 40 }, adminNotes: DB.adminNotes || [],
+        smsSettings: DB.smsSettings || { template: "" }
       };
 
       const failures = [];
