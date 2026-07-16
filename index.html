@@ -793,6 +793,7 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
         <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(212,175,55,0.2);padding:1.25rem;border-radius:4px;margin-bottom:1.5rem;">
           <div class="adm-label" style="margin-bottom:0.75rem;">Add / Update Guest Contact</div>
           <p style="color:var(--muted);font-size:0.78rem;margin-bottom:0.75rem;">Private admin info only &mdash; contact &amp; location are never shown on the public website or guest portal. Everything saved here also appears in the spreadsheet below for bulk SMS.</p>
+          <div id="contactProgress" style="font-size:0.75rem;color:#7FE0A8;margin-bottom:0.5rem;font-weight:600;"></div>
           <select class="adm-select" id="contactGuestSel" style="margin-bottom:0.6rem;"><option value="">-- Choose a Guest --</option></select>
           <input type="tel" class="pm-inp" id="contactPhone" placeholder="Phone Number (e.g. 024 123 4567)" style="margin-bottom:0.6rem;"/>
           <input type="text" class="pm-inp" id="contactLocation" placeholder="Location (e.g. Takoradi, Western Region)" style="margin-bottom:0.75rem;"/>
@@ -2597,8 +2598,16 @@ function reorderGuestsBySchedule(){
 /* ===== GUEST CONTACTS (ADMIN-ONLY SPREADSHEET, NEVER RENDERED ON PUBLIC SITE) ===== */
 function populateContactGuestSelect(){
   const sel=document.getElementById('contactGuestSel');
+  const contacts=DB.guestContacts||{};
+  const allNames=allGuestNames();
+  const added = allNames.filter(n=>contacts[n] && contacts[n].contact).length;
   sel.innerHTML='<option value="">-- Choose a Guest --</option>';
-  allGuestNames().forEach(n=>{sel.innerHTML+=`<option>${n}</option>`;});
+  allNames.forEach(n=>{
+    const has = contacts[n] && contacts[n].contact;
+    sel.innerHTML+=`<option value="${n}">${has?'✅':'⬜'} ${n}${has?' — Added':' — Not added yet'}</option>`;
+  });
+  const progressEl=document.getElementById('contactProgress');
+  if(progressEl) progressEl.textContent = `✅ ${added} of ${allNames.length} guests have contact info saved so far.`;
   sel.onchange=()=>{
     const c=(DB.guestContacts||{})[sel.value];
     document.getElementById('contactPhone').value = c?c.contact||'':'';
@@ -2648,6 +2657,7 @@ async function saveGuestContact(){
   okEl.style.display='block';
   setTimeout(()=>okEl.style.display='none',3000);
   renderGuestContactsTable();
+  populateContactGuestSelect();
 }
 async function removeGuestContact(name){
   if(!confirm('Remove the saved contact info for '+name+'?'))return;
@@ -2656,6 +2666,7 @@ async function removeGuestContact(name){
   renderGuestContactsTable();
   const sel=document.getElementById('contactGuestSel');
   if(sel && sel.value===name){ document.getElementById('contactPhone').value=''; document.getElementById('contactLocation').value=''; }
+  populateContactGuestSelect();
 }
 function renderGuestContactsTable(){
   const body=document.getElementById('contactsTableBody');
