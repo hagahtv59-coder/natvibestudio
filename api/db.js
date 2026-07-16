@@ -4,6 +4,11 @@
 // loads work fine. By doing the actual JSONBin reads/writes from here instead,
 // the visitor's device only ever needs to do a simple same-site request to
 // this endpoint, which carriers don't interfere with.
+//
+// UPDATE: also retries automatically with a short backoff if JSONBin replies
+// "429 Too Many Requests" (its free-tier rate limit), and staggers the 5
+// parallel bin requests slightly instead of firing them all in the same
+// instant, so normal usage is much less likely to trip that limit at all.
 
 const MASTER_KEY = "$2a$10$VM15AZotifF2wcXou8VdceFnUd7te9hDc3wHD1gD8IPtKR8PGVHqm";
 const MASTER_KEY_2 = "$2a$10$fEi2jZ47VxnreDHYK/N0p.EaCtczgFdc30kBdb.VwVp3mYRkZ8GCu";
@@ -27,30 +32,61 @@ function questionShard(guestName) {
   return h % 3;
 }
 
-async function fetchBin(url, key, label) {
-  const res = await fetch(url + "/latest", { headers: { "X-Master-Key": key }, cache: "no-store" });
-  if (!res.ok) {
-    const t = await res.text().catch(() => "");
-    throw new Error(label + " HTTP " + res.status + ": " + t);
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// Retries a request up to 4 extra times ONLY when JSONBin returns 429
+// (rate limited), waiting a bit longer each time. Any other error fails
+// immediately, same as before.
+async function withRetry(doRequest, label) {
+  const maxRetries = 4;
+  let attempt = 0;
+  while (true) {
+    const result = await doRequest();
+    if (result.status !== 429) return result;
+    if (attempt >= maxRetries) return result; // give up, let caller report the failure
+    const delay = 600 * Math.pow(2, attempt) + Math.floor(Math.random() * 250); // ~600ms,1.2s,2.4s,4.8s + jitter
+    console.warn(label + ": got 429, retrying in " + delay + "ms (attempt " + (attempt + 1) + "/" + maxRetries + ")");
+    await sleep(delay);
+    attempt++;
   }
-  const data = await res.json();
+}
+
+async function fetchBin(url, key, label) {
+  const result = await withRetry(async () => {
+    const res = await fetch(url + "/latest", { headers: { "X-Master-Key": key }, cache: "no-store" });
+    return { status: res.status, res };
+  }, label);
+  if (!result.res.ok) {
+    const t = await result.res.text().catch(() => "");
+    throw new Error(label + " HTTP " + result.status + ": " + t);
+  }
+  const data = await result.res.json();
   return data.record || {};
 }
 
 async function putBin(url, payload, key, label, failures) {
   try {
-    const res = await fetch(url, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", "X-Master-Key": key },
-      body: JSON.stringify(payload)
-    });
-    if (!res.ok) {
-      const t = await res.text().catch(() => "");
-      failures.push(label + " (HTTP " + res.status + "): " + t);
+    const result = await withRetry(async () => {
+      const res = await fetch(url, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "X-Master-Key": key },
+        body: JSON.stringify(payload)
+      });
+      return { status: res.status, res };
+    }, label);
+    if (!result.res.ok) {
+      const t = await result.res.text().catch(() => "");
+      failures.push(label + " (HTTP " + result.status + "): " + t);
     }
   } catch (e) {
     failures.push(label + " (network error): " + e.message);
   }
+}
+
+// Runs a list of {run, delay} tasks concurrently but staggers their START
+// times so 5 requests don't all hit JSONBin in the exact same instant.
+function runStaggered(tasks) {
+  return Promise.all(tasks.map((task, i) => sleep(i * 150).then(task)));
 }
 
 module.exports = async (req, res) => {
@@ -61,12 +97,12 @@ module.exports = async (req, res) => {
 
   try {
     if (req.method === "GET") {
-      const [core, q1, q2, q3, extra] = await Promise.all([
-        fetchBin(BIN_URL, MASTER_KEY, "core"),
-        fetchBin(QUESTIONS_BIN_URL, MASTER_KEY, "questions shard 1"),
-        fetchBin(QUESTIONS_BIN_URL_2, MASTER_KEY_2, "questions shard 2"),
-        fetchBin(QUESTIONS_BIN_URL_3, MASTER_KEY_2, "questions shard 3"),
-        fetchBin(EXTRA_BIN_URL, MASTER_KEY, "extra")
+      const [core, q1, q2, q3, extra] = await runStaggered([
+        () => fetchBin(BIN_URL, MASTER_KEY, "core"),
+        () => fetchBin(QUESTIONS_BIN_URL, MASTER_KEY, "questions shard 1"),
+        () => fetchBin(QUESTIONS_BIN_URL_2, MASTER_KEY_2, "questions shard 2"),
+        () => fetchBin(QUESTIONS_BIN_URL_3, MASTER_KEY_2, "questions shard 3"),
+        () => fetchBin(EXTRA_BIN_URL, MASTER_KEY, "extra")
       ]);
       const allQuestions = [].concat(q1.questions || [], q2.questions || [], q3.questions || []);
       const merged = Object.assign({}, core, extra);
@@ -91,16 +127,18 @@ module.exports = async (req, res) => {
         schedules: DB.schedules || {}, gallery: DB.gallery || [], videos: DB.videos || [],
         guestApplications: DB.guestApplications || [], mediaPartners: DB.mediaPartners || [],
         sponsors: DB.sponsors || [], siteContent: DB.siteContent || {}, teamMembers: DB.teamMembers || [],
-        checkins: DB.checkins || [], roleDuties: DB.roleDuties || {}, teamRoles: DB.teamRoles || [], logbook: DB.logbook || []
+        checkins: DB.checkins || [], roleDuties: DB.roleDuties || {}, teamRoles: DB.teamRoles || [], logbook: DB.logbook || [],
+        guestContacts: DB.guestContacts || {}, announcements: DB.announcements || [], issueReports: DB.issueReports || [],
+        scheduleSettings: DB.scheduleSettings || { defaultDuration: 40 }, adminNotes: DB.adminNotes || []
       };
 
       const failures = [];
-      await Promise.all([
-        putBin(BIN_URL, core, MASTER_KEY, "core", failures),
-        putBin(QUESTIONS_BIN_URL, { questions: shard1 }, MASTER_KEY, "questions shard 1", failures),
-        putBin(QUESTIONS_BIN_URL_2, { questions: shard2 }, MASTER_KEY_2, "questions shard 2", failures),
-        putBin(QUESTIONS_BIN_URL_3, { questions: shard3 }, MASTER_KEY_2, "questions shard 3", failures),
-        putBin(EXTRA_BIN_URL, extra, MASTER_KEY, "extra", failures)
+      await runStaggered([
+        () => putBin(BIN_URL, core, MASTER_KEY, "core", failures),
+        () => putBin(QUESTIONS_BIN_URL, { questions: shard1 }, MASTER_KEY, "questions shard 1", failures),
+        () => putBin(QUESTIONS_BIN_URL_2, { questions: shard2 }, MASTER_KEY_2, "questions shard 2", failures),
+        () => putBin(QUESTIONS_BIN_URL_3, { questions: shard3 }, MASTER_KEY_2, "questions shard 3", failures),
+        () => putBin(EXTRA_BIN_URL, extra, MASTER_KEY, "extra", failures)
       ]);
 
       if (failures.length) {
