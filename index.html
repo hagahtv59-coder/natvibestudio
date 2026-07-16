@@ -790,15 +790,23 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
 
       <!-- GUEST CONTACTS (ADMIN-ONLY, NEVER SHOWN ON PUBLIC SITE) -->
       <div class="adm-tc" id="adm-contacts">
+        <div style="background:rgba(61,184,113,0.06);border:1px solid rgba(61,184,113,0.3);border-radius:4px;padding:1rem;margin-bottom:1.25rem;">
+          <label class="adm-label">Auto-SMS Message</label>
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.6rem;">This text is sent automatically by SMS the moment you save a new contact below. Use <code>{name}</code> anywhere you want the guest's name inserted.</div>
+          <textarea class="pm-inp" id="smsTemplateText" rows="3" placeholder="e.g. Hi {name}, this is NAT-VIBE STUDIO. Thanks for being part of our Guinness World Records attempt! We'll be in touch with your schedule soon." style="width:100%;resize:vertical;margin-bottom:0.6rem;"></textarea>
+          <button class="pm-btn" style="background:#3DB871;border-color:#3DB871;width:auto;padding:9px 20px;font-size:0.8rem;" onclick="saveSmsTemplate()">&#128190; Save Message</button>
+          <span id="smsTemplateSaved" style="display:none;color:#7FE0A8;font-size:0.75rem;margin-left:8px;">&#10003; Saved</span>
+        </div>
         <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(212,175,55,0.2);padding:1.25rem;border-radius:4px;margin-bottom:1.5rem;">
           <div class="adm-label" style="margin-bottom:0.75rem;">Add / Update Guest Contact</div>
-          <p style="color:var(--muted);font-size:0.78rem;margin-bottom:0.75rem;">Private admin info only &mdash; contact &amp; location are never shown on the public website or guest portal. Everything saved here also appears in the spreadsheet below for bulk SMS.</p>
+          <p style="color:var(--muted);font-size:0.78rem;margin-bottom:0.75rem;">Private admin info only &mdash; contact &amp; location are never shown on the public website or guest portal. Everything saved here also appears in the spreadsheet below for bulk SMS, and the Auto-SMS Message above is sent to this number right away.</p>
           <div id="contactProgress" style="font-size:0.75rem;color:#7FE0A8;margin-bottom:0.5rem;font-weight:600;"></div>
           <select class="adm-select" id="contactGuestSel" style="margin-bottom:0.6rem;"><option value="">-- Choose a Guest --</option></select>
           <input type="tel" class="pm-inp" id="contactPhone" placeholder="Phone Number (e.g. 024 123 4567)" style="margin-bottom:0.6rem;"/>
           <input type="text" class="pm-inp" id="contactLocation" placeholder="Location (e.g. Takoradi, Western Region)" style="margin-bottom:0.75rem;"/>
-          <button class="pm-btn gold" style="width:auto;padding:11px 28px;" onclick="saveGuestContact()">&#43; Save Contact</button>
+          <button class="pm-btn gold" style="width:auto;padding:11px 28px;" onclick="saveGuestContact()">&#43; Save Contact &amp; Send SMS</button>
           <div class="adm-success" id="contactSaveSuccess">&#10003; Contact saved to spreadsheet!</div>
+          <div id="smsSendStatus" style="font-size:0.78rem;margin-top:6px;"></div>
           <div class="pm-err" id="contactSaveErr" style="display:none;">Please choose a guest and enter a phone number.</div>
         </div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;flex-wrap:wrap;gap:0.6rem;">
@@ -1184,7 +1192,7 @@ const GUESTS=[
 // the public page.
 const DB_API = "/api/db";
 
-let DB = {questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[]};
+let DB = {questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[], smsSettings:{template:''}};
 
 async function loadDB(){
   try{
@@ -1258,7 +1266,7 @@ function restoreBackup(event){
       event.target.value='';
       return;
     }
-    DB = Object.assign({questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[]}, parsed);
+    DB = Object.assign({questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[], smsSettings:{template:''}}, parsed);
     const saved=await saveDB();
     event.target.value='';
     if(saved){
@@ -1968,7 +1976,7 @@ function switchAdmTab(id){
   document.getElementById(id).classList.add('active');
   if(id==='adm-view')renderAdminQ();
   if(id==='adm-guests'){renderAdminGuests();populateRemoveGuestSelect();renderRemovedGuests();}
-  if(id==='adm-contacts'){populateContactGuestSelect();renderGuestContactsTable();}
+  if(id==='adm-contacts'){populateContactGuestSelect();renderGuestContactsTable();document.getElementById('smsTemplateText').value=(DB.smsSettings && DB.smsSettings.template)||'';}
   if(id==='adm-notes'){renderAdminNotes();}
   if(id==='adm-schedule'){populateScheduleSelect();renderAdminSchedules();}
   if(id==='adm-alerts'){renderAdminAnnouncements();renderIssueReports();}
@@ -2644,13 +2652,40 @@ async function deleteAdminNote(id){
   renderAdminNotes();
 }
 
+async function sendSmsToPhone(phone, message){
+  try{
+    const res=await fetch('/api/send-sms', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({phone, message})
+    });
+    const json=await res.json();
+    return json;
+  }catch(e){
+    return {ok:false, error:e.message};
+  }
+}
+function fillSmsTemplate(name){
+  const tpl=(DB.smsSettings && DB.smsSettings.template) || '';
+  return tpl.replace(/\{name\}/g, name);
+}
+async function saveSmsTemplate(){
+  const text=document.getElementById('smsTemplateText').value;
+  await loadDB();
+  if(!DB.smsSettings) DB.smsSettings={};
+  DB.smsSettings.template=text;
+  await saveDB();
+  const ok=document.getElementById('smsTemplateSaved');
+  ok.style.display='inline'; setTimeout(()=>ok.style.display='none',2500);
+}
 async function saveGuestContact(){
   const guest=document.getElementById('contactGuestSel').value;
   const contact=document.getElementById('contactPhone').value.trim();
   const location=document.getElementById('contactLocation').value.trim();
   const errEl=document.getElementById('contactSaveErr'), okEl=document.getElementById('contactSaveSuccess');
-  errEl.style.display='none'; okEl.style.display='none';
+  const smsStatus=document.getElementById('smsSendStatus');
+  errEl.style.display='none'; okEl.style.display='none'; smsStatus.textContent='';
   if(!guest||!contact){errEl.style.display='block';return;}
+  const btn=event.target; btn.disabled=true; const orig=btn.textContent; btn.textContent='Saving...';
   if(!DB.guestContacts) DB.guestContacts={};
   DB.guestContacts[guest]={contact,location};
   await saveDB();
@@ -2658,6 +2693,26 @@ async function saveGuestContact(){
   setTimeout(()=>okEl.style.display='none',3000);
   renderGuestContactsTable();
   populateContactGuestSelect();
+  const tpl=(DB.smsSettings && DB.smsSettings.template) || '';
+  if(tpl.trim()){
+    smsStatus.style.color='var(--muted)';
+    smsStatus.textContent='Sending SMS...';
+    const result=await sendSmsToPhone(contact, fillSmsTemplate(guest));
+    if(result.ok){
+      smsStatus.style.color='#7FE0A8';
+      smsStatus.textContent='✓ SMS sent to '+contact;
+    }else{
+      smsStatus.style.color='#FF8A8A';
+      smsStatus.textContent='⚠ Contact saved, but SMS failed: '+(result.error||'unknown error');
+    }
+  }
+  btn.disabled=false; btn.textContent=orig;
+}
+async function resendGuestSms(name, phone){
+  const tpl=(DB.smsSettings && DB.smsSettings.template) || '';
+  if(!tpl.trim()){ alert('Set your Auto-SMS Message at the top of this tab first.'); return; }
+  const result=await sendSmsToPhone(phone, fillSmsTemplate(name));
+  alert(result.ok ? ('✓ SMS sent to '+phone) : ('⚠ SMS failed: '+(result.error||'unknown error')));
 }
 async function removeGuestContact(name){
   if(!confirm('Remove the saved contact info for '+name+'?'))return;
@@ -2684,7 +2739,7 @@ function renderGuestContactsTable(){
       <td style="padding:9px 12px;font-weight:600;">${n}</td>
       <td style="padding:9px 12px;">${c.contact||''}</td>
       <td style="padding:9px 12px;">${c.location||''}</td>
-      <td style="padding:9px 12px;text-align:right;"><button class="adm-del" onclick="removeGuestContact('${n.replace(/'/g,"\\'")}')">&#128465;</button></td>
+      <td style="padding:9px 12px;text-align:right;white-space:nowrap;"><button class="adm-del" style="background:rgba(61,184,113,0.2);color:#7FE0A8;margin-right:4px;" onclick="resendGuestSms('${n.replace(/'/g,"\\'")}','${(c.contact||'').replace(/'/g,"\\'")}')">&#128172; Resend SMS</button><button class="adm-del" onclick="removeGuestContact('${n.replace(/'/g,"\\'")}')">&#128465;</button></td>
     </tr>`;
   }).join('');
 }
