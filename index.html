@@ -899,6 +899,23 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
           <button class="pm-btn gold" style="width:auto;padding:11px 28px;" onclick="saveSchedule()">&#43; Save Schedule</button>
           <div class="adm-success" id="schedSuccess">&#10003; Schedule saved successfully!</div>
         </div>
+
+        <div style="background:rgba(61,184,113,0.06);border:1px solid rgba(61,184,113,0.3);border-radius:4px;padding:1.1rem 1.25rem;margin-bottom:1.5rem;">
+          <div class="adm-label" style="margin-bottom:0.4rem;">&#128241; Interview Reminder SMS</div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">One message, sent to every scheduled guest with their own date and time filled in automatically. Use <code>{name}</code>, <code>{date}</code>, <code>{time}</code>, and <code>{location}</code> — each guest gets their own version.</div>
+          <div class="adm-label" style="font-size:0.78rem;margin-bottom:0.35rem;color:var(--muted);">Event Location</div>
+          <input type="text" class="pm-inp" id="eventLocationInput" placeholder="e.g. NAT-VIBE STUDIO, Accra Sports Stadium Complex" style="margin-bottom:0.6rem;" onchange="saveEventLocation()"/>
+          <div class="adm-label" style="font-size:0.78rem;margin-bottom:0.35rem;color:var(--muted);">Message Template</div>
+          <textarea class="pm-inp" id="interviewTemplateText" rows="4" placeholder="e.g. Hi {name}, your interview is scheduled for {date} at {time}, at {location}. Please arrive 20 minutes early so we can test your mic and get you ready. See you then!" style="width:100%;resize:vertical;margin-bottom:0.6rem;"></textarea>
+          <button class="pm-btn" style="background:#3DB871;border-color:#3DB871;width:auto;padding:9px 20px;font-size:0.8rem;" onclick="saveInterviewTemplate()">&#128190; Save Message</button>
+          <span id="interviewTemplateSaved" style="display:none;color:#7FE0A8;font-size:0.75rem;margin-left:8px;">&#10003; Saved</span>
+          <div style="margin-top:0.9rem;padding-top:0.9rem;border-top:1px solid rgba(255,255,255,0.1);">
+            <button class="pm-btn" style="background:#9B59FF;border-color:#9B59FF;width:auto;padding:11px 24px;" onclick="sendAllInterviewReminders()">&#128172; Send to All Scheduled Guests</button>
+            <div style="font-size:0.7rem;color:var(--muted);margin-top:6px;">Only sends to guests who have BOTH a schedule and a saved contact, and skips anyone already sent — safe to click again later for newly-added guests.</div>
+          </div>
+          <div id="bulkReminderStatus" style="font-size:0.78rem;margin-top:8px;"></div>
+        </div>
+
         <div class="adm-label" style="margin-bottom:0.75rem;">All Scheduled Guests</div>
         <div class="adm-q-list" id="admSchedList"></div>
       </div>
@@ -2003,7 +2020,7 @@ function switchAdmTab(id){
   if(id==='adm-guests'){renderAdminGuests();populateRemoveGuestSelect();renderRemovedGuests();}
   if(id==='adm-contacts'){populateContactGuestSelect();renderGuestContactsTable();document.getElementById('smsTemplateText').value=(DB.smsSettings && DB.smsSettings.template)||'';populateRemindGuestSelect();renderScheduledReminders();}
   if(id==='adm-notes'){renderAdminNotes();}
-  if(id==='adm-schedule'){populateScheduleSelect();renderAdminSchedules();}
+  if(id==='adm-schedule'){populateScheduleSelect();renderAdminSchedules();document.getElementById('eventLocationInput').value=(DB.scheduleSettings && DB.scheduleSettings.location)||'';document.getElementById('interviewTemplateText').value=(DB.smsSettings && DB.smsSettings.interviewTemplate)||'';}
   if(id==='adm-alerts'){renderAdminAnnouncements();renderIssueReports();}
   if(id==='adm-media'){renderAdminGallery();renderAdminVideos();}
   if(id==='adm-cfg'){renderAdminApplications();}
@@ -2497,6 +2514,76 @@ function computeNextScheduleSlot(){
   const endDt=new Date(latestTime); endDt.setMinutes(endDt.getMinutes()+duration);
   return {date:localDateStr(startDt), start:localTimeStr(startDt), end:localTimeStr(endDt)};
 }
+async function saveEventLocation(){
+  const loc=document.getElementById('eventLocationInput').value.trim();
+  await loadDB();
+  if(!DB.scheduleSettings) DB.scheduleSettings={};
+  DB.scheduleSettings.location=loc;
+  await saveDB();
+}
+async function saveInterviewTemplate(){
+  const text=document.getElementById('interviewTemplateText').value;
+  await loadDB();
+  if(!DB.smsSettings) DB.smsSettings={};
+  DB.smsSettings.interviewTemplate=text;
+  await saveDB();
+  const ok=document.getElementById('interviewTemplateSaved');
+  ok.style.display='inline'; setTimeout(()=>ok.style.display='none',2500);
+}
+function fillInterviewTemplate(name, sched){
+  const tpl=(DB.smsSettings && DB.smsSettings.interviewTemplate) || '';
+  const location=(DB.scheduleSettings && DB.scheduleSettings.location) || '';
+  const dateStr=fmtSchedDate(sched.date);
+  const timeStr=sched.end ? (fmtSchedTime(sched.start)+' - '+fmtSchedTime(sched.end)+(sched.crossesMidnight?' (next day)':'')) : fmtSchedTime(sched.start);
+  return tpl.replace(/\{name\}/g, name).replace(/\{date\}/g, dateStr).replace(/\{time\}/g, timeStr).replace(/\{location\}/g, location||'the venue');
+}
+async function sendOneInterviewReminder(name){
+  const tpl=(DB.smsSettings && DB.smsSettings.interviewTemplate) || '';
+  if(!tpl.trim()){ alert('Set your Interview Reminder message template first.'); return; }
+  const sched=(DB.schedules||{})[name];
+  const phone=(DB.guestContacts && DB.guestContacts[name] && DB.guestContacts[name].contact);
+  if(!sched||!phone){ alert('This guest needs both a schedule and a saved contact.'); return; }
+  const result=await sendSmsToPhone(phone, fillInterviewTemplate(name, sched));
+  if(result.ok){
+    await loadDB();
+    if(DB.schedules[name]){ DB.schedules[name].reminderSent=true; DB.schedules[name].reminderSentAt=new Date().toISOString(); }
+    await saveDB();
+    renderAdminSchedules();
+    alert('✓ Reminder sent to '+name+' ('+phone+')');
+  }else{
+    alert('⚠ Failed to send: '+(result.error||'unknown error'));
+  }
+}
+async function sendAllInterviewReminders(){
+  const tpl=(DB.smsSettings && DB.smsSettings.interviewTemplate) || '';
+  const statusEl=document.getElementById('bulkReminderStatus');
+  if(!tpl.trim()){ statusEl.style.color='#FF8A8A'; statusEl.textContent='⚠ Set your Interview Reminder message template first.'; return; }
+  await loadDB();
+  const sch=DB.schedules||{};
+  const contacts=DB.guestContacts||{};
+  const targets=Object.keys(sch).filter(n=>{
+    const s=sch[n];
+    return s && (s.date||s.time) && !s.reminderSent && contacts[n] && contacts[n].contact;
+  });
+  if(!targets.length){ statusEl.style.color='var(--muted)'; statusEl.textContent='Nothing to send — everyone with a schedule + contact has already received their reminder.'; return; }
+  const btn=event.target; btn.disabled=true; const orig=btn.textContent;
+  let sent=0, failed=0;
+  for(let i=0;i<targets.length;i++){
+    const name=targets[i];
+    btn.textContent=`Sending... (${i+1}/${targets.length})`;
+    statusEl.style.color='var(--muted)';
+    statusEl.textContent=`Sending to ${name} (${i+1} of ${targets.length})...`;
+    const result=await sendSmsToPhone(contacts[name].contact, fillInterviewTemplate(name, sch[name]));
+    if(result.ok){ sch[name].reminderSent=true; sch[name].reminderSentAt=new Date().toISOString(); sent++; }
+    else{ failed++; }
+    await new Promise(r=>setTimeout(r,300)); // small stagger so we don't burst Arkesel/JSONBin
+  }
+  await saveDB();
+  renderAdminSchedules();
+  statusEl.style.color = failed ? '#FFC857' : '#7FE0A8';
+  statusEl.textContent = `✓ Done. Sent: ${sent}${failed?(', Failed: '+failed):''} of ${targets.length}.`;
+  btn.disabled=false; btn.textContent=orig;
+}
 function populateScheduleSelect(){
   const sel=document.getElementById('schedGuestSel');
   const scheduled=new Set(Object.keys(DB.schedules||{}).filter(n=>DB.schedules[n] && (DB.schedules[n].date||DB.schedules[n].time)));
@@ -2555,7 +2642,12 @@ function renderAdminSchedules(){
   list.innerHTML=names.map((n,i)=>{
     const s=sch[n];
     const timeStr = s.date ? [fmtSchedDate(s.date), s.start ? (s.end?(fmtSchedTime(s.start)+' - '+fmtSchedTime(s.end)+(s.crossesMidnight?' (next day)':'')):fmtSchedTime(s.start)) : s.time].filter(Boolean).join(' &bull; ') : (s.time||'');
-    return `<div class="adm-q-item"><div><div class="adm-q-txt" style="font-weight:700;">${i+1}. ${n}</div><div class="adm-q-gst">&#128197; ${timeStr}</div></div><div style="display:flex;gap:6px;"><button class="adm-del" style="background:rgba(155,89,255,0.2);color:#C9A8FF;" onclick="openSwapGuest('${n.replace(/'/g,"\\'")}')">&#128260; Swap</button><button class="adm-del" onclick="removeSchedule('${n.replace(/'/g,"\\'")}')">&#128465; Remove</button></div></div>`;
+    const hasContact = DB.guestContacts && DB.guestContacts[n] && DB.guestContacts[n].contact;
+    const reminderBadge = s.reminderSent
+      ? '<span style="color:#7FE0A8;font-size:0.65rem;">&#9989; Reminder sent</span>'
+      : (hasContact ? '<span style="color:#FFC857;font-size:0.65rem;">&#9203; Reminder not sent yet</span>' : '<span style="color:var(--muted);font-size:0.65rem;">No contact saved</span>');
+    const sendBtn = hasContact ? `<button class="adm-del" style="background:rgba(61,184,113,0.2);color:#7FE0A8;" onclick="sendOneInterviewReminder('${n.replace(/'/g,"\\'")}')">&#128172; ${s.reminderSent?'Resend':'Send'}</button>` : '';
+    return `<div class="adm-q-item"><div><div class="adm-q-txt" style="font-weight:700;">${i+1}. ${n}</div><div class="adm-q-gst">&#128197; ${timeStr}</div><div style="margin-top:2px;">${reminderBadge}</div></div><div style="display:flex;gap:6px;flex-wrap:wrap;">${sendBtn}<button class="adm-del" style="background:rgba(155,89,255,0.2);color:#C9A8FF;" onclick="openSwapGuest('${n.replace(/'/g,"\\'")}')">&#128260; Swap</button><button class="adm-del" onclick="removeSchedule('${n.replace(/'/g,"\\'")}')">&#128465; Remove</button></div></div>`;
   }).join('');
 }
 let swapOldName=null;
