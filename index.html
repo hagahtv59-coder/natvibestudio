@@ -1072,6 +1072,51 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
           <div class="pm-err" id="dutiesErr">Please choose a role first.</div>
           <div class="adm-success" id="dutiesSuccess">&#10003; Duties saved for this role.</div>
         </div>
+
+        <div style="background:rgba(61,184,113,0.06);border:1px solid rgba(61,184,113,0.3);border-radius:4px;padding:1.1rem 1.25rem;margin-bottom:1.5rem;">
+          <div class="adm-label" style="margin-bottom:0.4rem;">&#128197; Assign Duty Time &amp; Contact</div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">Private admin info only — never shown on the public website. Pick a team member, add their phone, and set exactly when their shift runs. Save it, then hit Send whenever you're ready to text them.</div>
+          <select class="adm-select" id="teamDutyMemberSel" style="margin-bottom:0.6rem;"><option value="">-- Choose a Team Member --</option></select>
+          <input type="tel" class="pm-inp" id="teamDutyPhone" placeholder="Phone Number (e.g. 024 123 4567)" style="margin-bottom:0.6rem;"/>
+          <div class="adm-label" style="font-size:0.78rem;margin-bottom:0.35rem;color:var(--muted);">Date</div>
+          <input type="date" class="pm-inp" id="teamDutyDate" style="margin-bottom:0.6rem;"/>
+          <div style="display:flex;gap:0.6rem;margin-bottom:0.75rem;">
+            <div style="flex:1;">
+              <div class="adm-label" style="font-size:0.78rem;margin-bottom:0.35rem;color:var(--muted);">Start Time</div>
+              <input type="time" class="pm-inp" id="teamDutyStart"/>
+            </div>
+            <div style="flex:1;">
+              <div class="adm-label" style="font-size:0.78rem;margin-bottom:0.35rem;color:var(--muted);">End Time</div>
+              <input type="time" class="pm-inp" id="teamDutyEnd"/>
+            </div>
+          </div>
+          <button class="pm-btn" style="background:#3DB871;border-color:#3DB871;width:auto;padding:11px 24px;" onclick="saveTeamDuty()">&#43; Save Duty &amp; Contact</button>
+          <div class="pm-err" id="teamDutyErr">Please choose a team member and set a date, start, and end time.</div>
+          <div class="adm-success" id="teamDutySuccess">&#10003; Saved!</div>
+        </div>
+
+        <div style="background:rgba(155,89,255,0.06);border:1px solid rgba(155,89,255,0.25);border-radius:4px;padding:1.1rem 1.25rem;margin-bottom:1.5rem;">
+          <div class="adm-label" style="margin-bottom:0.4rem;">&#128172; Duty Reminder Message</div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">Use <code>{name}</code>, <code>{date}</code>, <code>{time}</code>, and <code>{role}</code> — each team member gets their own version filled in automatically.</div>
+          <textarea class="pm-inp" id="teamTemplateText" rows="4" placeholder="e.g. Hi {name}, reminder that your {role} shift is on {date} from {time}. Please arrive a little early. Thanks for being part of the team!" style="width:100%;resize:vertical;margin-bottom:0.6rem;"></textarea>
+          <button class="pm-btn" style="background:#9B59FF;border-color:#9B59FF;width:auto;padding:9px 20px;font-size:0.8rem;" onclick="saveTeamTemplate()">&#128190; Save Message</button>
+          <span id="teamTemplateSaved" style="display:none;color:#7FE0A8;font-size:0.75rem;margin-left:8px;">&#10003; Saved</span>
+          <div style="margin-top:0.9rem;padding-top:0.9rem;border-top:1px solid rgba(255,255,255,0.1);">
+            <button class="pm-btn gold" style="width:auto;padding:11px 24px;" onclick="sendAllTeamReminders()">&#128172; Send to All With a Saved Duty</button>
+            <div style="font-size:0.7rem;color:var(--muted);margin-top:6px;">Skips anyone already sent — safe to click again later for newly-added members.</div>
+          </div>
+          <div id="teamBulkStatus" style="font-size:0.78rem;margin-top:8px;"></div>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;flex-wrap:wrap;gap:0.6rem;">
+          <div class="adm-label" style="margin-bottom:0;">Team Duty Roster</div>
+          <div style="display:flex;gap:0.5rem;">
+            <button class="pm-btn" style="width:auto;padding:8px 18px;font-size:0.75rem;background:rgba(255,255,255,0.08);" onclick="copyAllTeamNumbers()">&#128203; Copy All Numbers</button>
+            <button class="pm-btn" style="width:auto;padding:8px 18px;font-size:0.75rem;background:rgba(255,255,255,0.08);" onclick="downloadTeamContactsCSV()">&#11015; Download Spreadsheet (CSV)</button>
+          </div>
+        </div>
+        <div class="adm-q-list" id="admTeamDutyList" style="margin-bottom:2rem;"></div>
+
         <div style="margin-bottom:1rem;">
           <label class="adm-label">Filter by Status</label>
           <select class="adm-select" id="teamFilter" onchange="renderAdminTeam()">
@@ -1234,7 +1279,7 @@ const GUESTS=[
 // the public page.
 const DB_API = "/api/db";
 
-let DB = {questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[], smsSettings:{template:''}, scheduledSms:[]};
+let DB = {questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[], smsSettings:{template:''}, scheduledSms:[], teamContacts:{}, teamSchedules:{}};
 
 async function loadDB(){
   try{
@@ -1308,7 +1353,7 @@ function restoreBackup(event){
       event.target.value='';
       return;
     }
-    DB = Object.assign({questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[], smsSettings:{template:''}, scheduledSms:[]}, parsed);
+    DB = Object.assign({questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[], smsSettings:{template:''}, scheduledSms:[], teamContacts:{}, teamSchedules:{}}, parsed);
     const saved=await saveDB();
     event.target.value='';
     if(saved){
@@ -2025,7 +2070,7 @@ function switchAdmTab(id){
   if(id==='adm-media'){renderAdminGallery();renderAdminVideos();}
   if(id==='adm-cfg'){renderAdminApplications();}
   if(id==='adm-site'){loadSiteContentFields();renderAdminMediaPartners();renderAdminSponsors();}
-  if(id==='adm-team'){renderAdminTeam();populateDutiesRoleSelect();}
+  if(id==='adm-team'){renderAdminTeam();populateDutiesRoleSelect();populateTeamDutyMemberSelect();renderTeamDutyRoster();document.getElementById('teamTemplateText').value=(DB.smsSettings && DB.smsSettings.teamTemplate)||'';}
   if(id==='adm-checkin'){renderAdminCheckins();}
 }
 function updateAdmStats(){
@@ -3431,6 +3476,170 @@ function renderAdminTeam(){
     </div>`;
   }).join('');
 }
+
+/* ===== TEAM DUTY SCHEDULE + CONTACTS + SMS REMINDERS (ADMIN-ONLY, NEVER SHOWN ON PUBLIC SITE) ===== */
+function populateTeamDutyMemberSelect(){
+  const sel=document.getElementById('teamDutyMemberSel');
+  if(!sel) return;
+  const members=(DB.teamMembers||[]).slice().sort((a,b)=>a.name.localeCompare(b.name));
+  sel.innerHTML='<option value="">-- Choose a Team Member --</option>'+members.map(m=>`<option value="${m.id}">${m.name}${m.role?(' — '+m.role):''}</option>`).join('');
+  sel.onchange=()=>{
+    const id=sel.value;
+    const contact=(DB.teamContacts||{})[id];
+    const sched=(DB.teamSchedules||{})[id];
+    document.getElementById('teamDutyPhone').value = contact?contact.contact||'':'';
+    document.getElementById('teamDutyDate').value = sched?sched.date||'':'';
+    document.getElementById('teamDutyStart').value = sched?sched.start||'':'';
+    document.getElementById('teamDutyEnd').value = sched?sched.end||'':'';
+  };
+}
+async function saveTeamDuty(){
+  const id=document.getElementById('teamDutyMemberSel').value;
+  const phone=document.getElementById('teamDutyPhone').value.trim();
+  const date=document.getElementById('teamDutyDate').value;
+  const start=document.getElementById('teamDutyStart').value;
+  const end=document.getElementById('teamDutyEnd').value;
+  const errEl=document.getElementById('teamDutyErr'), okEl=document.getElementById('teamDutySuccess');
+  errEl.style.display='none'; okEl.style.display='none';
+  if(!id||!date||!start||!end){ errEl.style.display='block'; return; }
+  const btn=event.target; btn.disabled=true; const orig=btn.textContent; btn.textContent='Saving...';
+  await loadDB();
+  if(phone){
+    if(!DB.teamContacts) DB.teamContacts={};
+    DB.teamContacts[id]={contact:phone};
+  }
+  if(!DB.teamSchedules) DB.teamSchedules={};
+  const prevReminder = DB.teamSchedules[id] && DB.teamSchedules[id].date===date && DB.teamSchedules[id].start===start && DB.teamSchedules[id].end===end ? {reminderSent:DB.teamSchedules[id].reminderSent, reminderSentAt:DB.teamSchedules[id].reminderSentAt} : {};
+  DB.teamSchedules[id]=Object.assign({date,start,end}, prevReminder);
+  await saveDB();
+  okEl.style.display='block'; setTimeout(()=>okEl.style.display='none',3000);
+  renderTeamDutyRoster();
+  btn.disabled=false; btn.textContent=orig;
+}
+function fillTeamTemplate(name, role, sched){
+  const tpl=(DB.smsSettings && DB.smsSettings.teamTemplate) || '';
+  const dateStr=fmtSchedDate(sched.date);
+  const timeStr=fmtSchedTime(sched.start)+' - '+fmtSchedTime(sched.end);
+  return tpl.replace(/\{name\}/g, name).replace(/\{role\}/g, role||'your role').replace(/\{date\}/g, dateStr).replace(/\{time\}/g, timeStr);
+}
+async function saveTeamTemplate(){
+  const text=document.getElementById('teamTemplateText').value;
+  await loadDB();
+  if(!DB.smsSettings) DB.smsSettings={};
+  DB.smsSettings.teamTemplate=text;
+  await saveDB();
+  const ok=document.getElementById('teamTemplateSaved');
+  ok.style.display='inline'; setTimeout(()=>ok.style.display='none',2500);
+}
+function renderTeamDutyRoster(){
+  const box=document.getElementById('admTeamDutyList');
+  if(!box) return;
+  const scheds=DB.teamSchedules||{};
+  const contacts=DB.teamContacts||{};
+  const members=DB.teamMembers||[];
+  const ids=Object.keys(scheds).filter(id=>scheds[id] && scheds[id].date);
+  if(!ids.length){ box.innerHTML='<div style="color:var(--muted);padding:1.5rem;text-align:center;font-size:0.85rem;">No duty times assigned yet.</div>'; return; }
+  ids.sort((a,b)=> (scheds[a].date+scheds[a].start).localeCompare(scheds[b].date+scheds[b].start));
+  box.innerHTML=ids.map(id=>{
+    const m=members.find(x=>String(x.id)===String(id));
+    const name=m?m.name:'(deleted member)';
+    const role=m?m.role:'';
+    const s=scheds[id];
+    const phone=(contacts[id]||{}).contact;
+    const timeStr=[fmtSchedDate(s.date), fmtSchedTime(s.start)+' - '+fmtSchedTime(s.end)].join(' &bull; ');
+    const reminderBadge = s.reminderSent
+      ? '<span style="color:#7FE0A8;font-size:0.65rem;">&#9989; Reminder sent</span>'
+      : (phone ? '<span style="color:#FFC857;font-size:0.65rem;">&#9203; Not sent yet</span>' : '<span style="color:var(--muted);font-size:0.65rem;">No phone saved</span>');
+    const sendBtn = phone ? `<button class="adm-del" style="background:rgba(61,184,113,0.2);color:#7FE0A8;" onclick="sendOneTeamReminder('${id}')">&#128172; ${s.reminderSent?'Resend':'Send'}</button>` : '';
+    return `<div class="adm-q-item"><div><div class="adm-q-txt" style="font-weight:700;">${name}${role?(' — '+role):''}</div><div class="adm-q-gst">&#128197; ${timeStr}${phone?(' &bull; '+phone):''}</div><div style="margin-top:2px;">${reminderBadge}</div></div><div style="display:flex;gap:6px;flex-wrap:wrap;">${sendBtn}<button class="adm-del" onclick="removeTeamDuty('${id}')">&#128465; Remove</button></div></div>`;
+  }).join('');
+}
+async function removeTeamDuty(id){
+  if(!confirm('Remove this duty assignment?'))return;
+  await loadDB();
+  delete (DB.teamSchedules||{})[id];
+  await saveDB();
+  renderTeamDutyRoster();
+}
+async function sendOneTeamReminder(id){
+  const tpl=(DB.smsSettings && DB.smsSettings.teamTemplate) || '';
+  if(!tpl.trim()){ alert('Set your Duty Reminder Message first.'); return; }
+  const m=(DB.teamMembers||[]).find(x=>String(x.id)===String(id));
+  const sched=(DB.teamSchedules||{})[id];
+  const phone=(DB.teamContacts||{})[id] && DB.teamContacts[id].contact;
+  if(!m||!sched||!phone){ alert('This member needs a saved phone number and duty time.'); return; }
+  const result=await sendSmsToPhone(phone, fillTeamTemplate(m.name, m.role, sched));
+  if(result.ok){
+    await loadDB();
+    if(DB.teamSchedules[id]){ DB.teamSchedules[id].reminderSent=true; DB.teamSchedules[id].reminderSentAt=new Date().toISOString(); }
+    await saveDB();
+    renderTeamDutyRoster();
+    alert('✓ Reminder sent to '+m.name+' ('+phone+')');
+  }else{
+    alert('⚠ Failed to send: '+(result.error||'unknown error'));
+  }
+}
+async function sendAllTeamReminders(){
+  const tpl=(DB.smsSettings && DB.smsSettings.teamTemplate) || '';
+  const statusEl=document.getElementById('teamBulkStatus');
+  if(!tpl.trim()){ statusEl.style.color='#FF8A8A'; statusEl.textContent='⚠ Set your Duty Reminder Message first.'; return; }
+  await loadDB();
+  const scheds=DB.teamSchedules||{};
+  const contacts=DB.teamContacts||{};
+  const members=DB.teamMembers||[];
+  const targets=Object.keys(scheds).filter(id=>scheds[id] && scheds[id].date && !scheds[id].reminderSent && contacts[id] && contacts[id].contact);
+  if(!targets.length){ statusEl.style.color='var(--muted)'; statusEl.textContent='Nothing to send — everyone with a duty time + phone has already received their reminder.'; return; }
+  const btn=event.target; btn.disabled=true; const orig=btn.textContent;
+  let sent=0, failed=0;
+  for(let i=0;i<targets.length;i++){
+    const id=targets[i];
+    const m=members.find(x=>String(x.id)===String(id));
+    if(!m){ failed++; continue; }
+    btn.textContent=`Sending... (${i+1}/${targets.length})`;
+    statusEl.style.color='var(--muted)';
+    statusEl.textContent=`Sending to ${m.name} (${i+1} of ${targets.length})...`;
+    const result=await sendSmsToPhone(contacts[id].contact, fillTeamTemplate(m.name, m.role, scheds[id]));
+    if(result.ok){ scheds[id].reminderSent=true; scheds[id].reminderSentAt=new Date().toISOString(); sent++; }
+    else{ failed++; }
+    await new Promise(r=>setTimeout(r,300));
+  }
+  await saveDB();
+  renderTeamDutyRoster();
+  statusEl.style.color = failed ? '#FFC857' : '#7FE0A8';
+  statusEl.textContent = `✓ Done. Sent: ${sent}${failed?(', Failed: '+failed):''} of ${targets.length}.`;
+  btn.disabled=false; btn.textContent=orig;
+}
+function copyAllTeamNumbers(){
+  const contacts=DB.teamContacts||{};
+  const numbers=Object.values(contacts).map(c=>c&&c.contact).filter(Boolean);
+  if(!numbers.length){alert('No team contacts saved yet.');return;}
+  navigator.clipboard.writeText(numbers.join(', ')).then(()=>{
+    alert(numbers.length+' phone number(s) copied.');
+  }).catch(()=>{
+    prompt('Copy these numbers manually:', numbers.join(', '));
+  });
+}
+function downloadTeamContactsCSV(){
+  const contacts=DB.teamContacts||{};
+  const scheds=DB.teamSchedules||{};
+  const members=DB.teamMembers||[];
+  const ids=Object.keys(contacts).filter(id=>contacts[id] && contacts[id].contact);
+  if(!ids.length){alert('No team contacts saved yet.');return;}
+  const escCsv=v=>'"'+String(v||'').replace(/"/g,'""')+'"';
+  let csv='Team Member,Role,Contact,Duty Date,Duty Time\n';
+  ids.forEach(id=>{
+    const m=members.find(x=>String(x.id)===String(id));
+    const s=scheds[id]||{};
+    csv+=[escCsv(m?m.name:'(deleted member)'), escCsv(m?m.role:''), escCsv(contacts[id].contact), escCsv(s.date?fmtSchedDate(s.date):''), escCsv(s.start?(fmtSchedTime(s.start)+' - '+fmtSchedTime(s.end)):'')].join(',')+'\n';
+  });
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download='natvibe-team-contacts.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 async function setTeamStatus(id,status){
   const m=(DB.teamMembers||[]).find(t=>t.id===id);
   if(!m) return;
