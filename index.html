@@ -444,6 +444,16 @@ footer{background:#0D0105;padding:3.5rem 3rem 1.5rem;border-top:2px solid var(--
   </div>
 </section>
 
+<section class="gals" id="meet-team">
+  <div class="gali">
+    <p class="sl">Behind the Scenes</p>
+    <h2 class="st">Meet The Team</h2>
+    <div class="dv"></div>
+    <div class="gg" id="publicTeamGrid" style="display:none;"></div>
+    <p id="publicTeamEmpty" style="text-align:center;margin-top:1.2rem;font-size:.73rem;color:var(--muted);">Team lineup coming soon.</p>
+  </div>
+</section>
+
 <!-- LIGHTBOX -->
 <div id="lightbox" onclick="closeLightbox()" style="display:none;position:fixed;inset:0;background:rgba(4,11,24,0.92);z-index:2000;align-items:center;justify-content:center;padding:2rem;">
   <div id="lightboxInner" style="max-width:900px;width:100%;max-height:85vh;" onclick="event.stopPropagation()"></div>
@@ -1108,12 +1118,25 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
           <div id="teamBulkStatus" style="font-size:0.78rem;margin-top:8px;"></div>
         </div>
 
+        <div style="background:rgba(255,200,87,0.06);border:1px solid rgba(255,200,87,0.3);border-radius:4px;padding:1.1rem 1.25rem;margin-bottom:1.5rem;">
+          <div class="adm-label" style="margin-bottom:0.4rem;">&#128172; Send One Message To Everyone</div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">A one-off broadcast — not tied to duty times. Goes to every team member with a saved phone number, whether or not they have a duty assigned. You can use <code>{name}</code>.</div>
+          <textarea class="pm-inp" id="teamBroadcastText" rows="3" placeholder="e.g. Hi {name}, quick update — the venue address has changed, check the pinned announcement for details." style="width:100%;resize:vertical;margin-bottom:0.6rem;"></textarea>
+          <button class="pm-btn gold" style="width:auto;padding:11px 24px;" onclick="sendTeamBroadcast()">&#128172; Send to All Team Contacts</button>
+          <div id="teamBroadcastStatus" style="font-size:0.78rem;margin-top:8px;"></div>
+        </div>
+
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;flex-wrap:wrap;gap:0.6rem;">
-          <div class="adm-label" style="margin-bottom:0;">Team Duty Roster</div>
+          <div class="adm-label" style="margin-bottom:0;">Team Contacts (just names &amp; numbers)</div>
           <div style="display:flex;gap:0.5rem;">
             <button class="pm-btn" style="width:auto;padding:8px 18px;font-size:0.75rem;background:rgba(255,255,255,0.08);" onclick="copyAllTeamNumbers()">&#128203; Copy All Numbers</button>
             <button class="pm-btn" style="width:auto;padding:8px 18px;font-size:0.75rem;background:rgba(255,255,255,0.08);" onclick="downloadTeamContactsCSV()">&#11015; Download Spreadsheet (CSV)</button>
           </div>
+        </div>
+        <div class="adm-q-list" id="admTeamContactsOnlyList" style="margin-bottom:2rem;"></div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;flex-wrap:wrap;gap:0.6rem;">
+          <div class="adm-label" style="margin-bottom:0;">Team Duty Roster</div>
         </div>
         <div class="adm-q-list" id="admTeamDutyList" style="margin-bottom:2rem;"></div>
 
@@ -2070,7 +2093,7 @@ function switchAdmTab(id){
   if(id==='adm-media'){renderAdminGallery();renderAdminVideos();}
   if(id==='adm-cfg'){renderAdminApplications();}
   if(id==='adm-site'){loadSiteContentFields();renderAdminMediaPartners();renderAdminSponsors();}
-  if(id==='adm-team'){renderAdminTeam();populateDutiesRoleSelect();populateTeamDutyMemberSelect();renderTeamDutyRoster();document.getElementById('teamTemplateText').value=(DB.smsSettings && DB.smsSettings.teamTemplate)||'';}
+  if(id==='adm-team'){renderAdminTeam();populateDutiesRoleSelect();populateTeamDutyMemberSelect();renderTeamDutyRoster();renderTeamContactsOnly();document.getElementById('teamTemplateText').value=(DB.smsSettings && DB.smsSettings.teamTemplate)||'';}
   if(id==='adm-checkin'){renderAdminCheckins();}
 }
 function updateAdmStats(){
@@ -2269,6 +2292,21 @@ async function initDynamicGuests(){
   applySiteContent();
   renderMediaSection();
   renderSponsorsSection();
+  renderPublicTeamSection();
+}
+/* Public "Meet The Team" section — shows approved team members' photo, name,
+   and just their picked role (e.g. "Witness", "Timekeeper") — never their
+   duties, contact info, or shift times, which stay private in the admin
+   dashboard / Team Vibe portal. */
+function renderPublicTeamSection(){
+  const grid=document.getElementById('publicTeamGrid');
+  const empty=document.getElementById('publicTeamEmpty');
+  if(!grid) return;
+  const members=(DB.teamMembers||[]).filter(m=>m.status==='approved' && m.role && m.photo);
+  if(!members.length){ grid.style.display='none'; if(empty) empty.style.display='block'; return; }
+  if(empty) empty.style.display='none';
+  grid.style.display='';
+  grid.innerHTML=members.map(m=>`<div class="g-card"><div class="g-av"><img src="${m.photo}" alt="${qHtml(m.name)}" style="width:100%;height:100%;object-fit:cover;object-position:center top;"/></div><div class="g-name">${qHtml(m.name)}</div><div class="g-role">${qHtml(m.role)}</div></div>`).join('');
 }
 
 /* ===== SCHEDULE & BOOKING ===== */
@@ -3514,6 +3552,7 @@ async function saveTeamDuty(){
   await saveDB();
   okEl.style.display='block'; setTimeout(()=>okEl.style.display='none',3000);
   renderTeamDutyRoster();
+  renderTeamContactsOnly();
   btn.disabled=false; btn.textContent=orig;
 }
 function fillTeamTemplate(name, role, sched){
@@ -3530,6 +3569,45 @@ async function saveTeamTemplate(){
   await saveDB();
   const ok=document.getElementById('teamTemplateSaved');
   ok.style.display='inline'; setTimeout(()=>ok.style.display='none',2500);
+}
+function renderTeamContactsOnly(){
+  const box=document.getElementById('admTeamContactsOnlyList');
+  if(!box) return;
+  const contacts=DB.teamContacts||{};
+  const members=DB.teamMembers||[];
+  const ids=Object.keys(contacts).filter(id=>contacts[id] && contacts[id].contact);
+  if(!ids.length){ box.innerHTML='<div style="color:var(--muted);padding:1.5rem;text-align:center;font-size:0.85rem;">No team contacts saved yet.</div>'; return; }
+  const rows=ids.map(id=>{
+    const m=members.find(x=>String(x.id)===String(id));
+    return {name:m?m.name:'(deleted member)', phone:contacts[id].contact};
+  }).sort((a,b)=>a.name.localeCompare(b.name));
+  box.innerHTML=rows.map(r=>`<div class="adm-q-item"><div><div class="adm-q-txt" style="font-weight:700;">${qHtml(r.name)}</div><div class="adm-q-gst">${qHtml(r.phone)}</div></div></div>`).join('');
+}
+async function sendTeamBroadcast(){
+  const msg=document.getElementById('teamBroadcastText').value.trim();
+  const statusEl=document.getElementById('teamBroadcastStatus');
+  if(!msg){ statusEl.style.color='#FF8A8A'; statusEl.textContent='⚠ Write a message first.'; return; }
+  await loadDB();
+  const contacts=DB.teamContacts||{};
+  const members=DB.teamMembers||[];
+  const ids=Object.keys(contacts).filter(id=>contacts[id] && contacts[id].contact);
+  if(!ids.length){ statusEl.style.color='var(--muted)'; statusEl.textContent='No team contacts saved yet.'; return; }
+  const btn=event.target; btn.disabled=true; const orig=btn.textContent;
+  let sent=0, failed=0;
+  for(let i=0;i<ids.length;i++){
+    const id=ids[i];
+    const m=members.find(x=>String(x.id)===String(id));
+    const name=m?m.name:'there';
+    btn.textContent=`Sending... (${i+1}/${ids.length})`;
+    statusEl.style.color='var(--muted)';
+    statusEl.textContent=`Sending to ${name} (${i+1} of ${ids.length})...`;
+    const result=await sendSmsToPhone(contacts[id].contact, msg.replace(/\{name\}/g, name));
+    if(result.ok) sent++; else failed++;
+    await new Promise(r=>setTimeout(r,300));
+  }
+  statusEl.style.color = failed ? '#FFC857' : '#7FE0A8';
+  statusEl.textContent = `✓ Done. Sent: ${sent}${failed?(', Failed: '+failed):''} of ${ids.length}.`;
+  btn.disabled=false; btn.textContent=orig;
 }
 function renderTeamDutyRoster(){
   const box=document.getElementById('admTeamDutyList');
@@ -3646,6 +3724,7 @@ async function setTeamStatus(id,status){
   m.status=status;
   await saveDB();
   renderAdminTeam();
+  renderPublicTeamSection();
   if(status==='approved'){
     sendTG('✅ NAT-VIBE STUDIO\n\nTeam Vibe member APPROVED\n👤 '+m.name+'\n🎯 Role: '+m.role);
   }
@@ -3655,6 +3734,7 @@ async function deleteTeamMember(id){
   DB.teamMembers=(DB.teamMembers||[]).filter(t=>t.id!==id);
   await saveDB();
   renderAdminTeam();
+  renderPublicTeamSection();
 }
 
 function closeSitePopup(id){
