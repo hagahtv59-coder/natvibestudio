@@ -1100,7 +1100,10 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
               <input type="time" class="pm-inp" id="teamDutyEnd"/>
             </div>
           </div>
-          <button class="pm-btn" style="background:#3DB871;border-color:#3DB871;width:auto;padding:11px 24px;" onclick="saveTeamDuty()">&#43; Save Duty &amp; Contact</button>
+          <div style="display:flex;gap:0.6rem;flex-wrap:wrap;">
+            <button class="pm-btn" style="background:rgba(255,255,255,0.08);width:auto;padding:11px 22px;" onclick="saveTeamContactOnly()">&#43; Save Contact Only</button>
+            <button class="pm-btn" style="background:#3DB871;border-color:#3DB871;width:auto;padding:11px 22px;" onclick="saveTeamDutyOnly()">&#43; Save Duty Only</button>
+          </div>
           <div class="pm-err" id="teamDutyErr">Please choose a team member and set a date, start, and end time.</div>
           <div class="adm-success" id="teamDutySuccess">&#10003; Saved!</div>
         </div>
@@ -2734,6 +2737,7 @@ function renderAdminSchedules(){
   }).join('');
 }
 let swapOldName=null;
+let qtDirty=false;
 function openSwapGuest(oldName){
   swapOldName=oldName;
   const slot=(DB.schedules||{})[oldName];
@@ -3355,6 +3359,9 @@ function renderSponsorsSection(){
   tr.innerHTML=sorted.map(s=>`<div class="ti${s.tier==='gold'?' tg':s.tier==='silver'?' tr2':''}">${s.logoUrl?`<img src="${s.logoUrl}" style="max-height:36px;max-width:80px;object-fit:contain;margin-bottom:4px;display:block;margin:0 auto 4px;"/>`:''}<div>${TIER_ICONS[s.tier]||''} ${s.name}</div><div style="font-size:.65rem;opacity:.65;">${TIER_LABELS[s.tier]||s.tier}</div></div>`).join('');
 }
 
+window.addEventListener('beforeunload', (e)=>{
+  if(qtDirty){ e.preventDefault(); e.returnValue=''; }
+});
 window.addEventListener('DOMContentLoaded', initDynamicGuests);
 window.addEventListener('DOMContentLoaded', ()=>{
   setInterval(()=>{
@@ -3531,21 +3538,34 @@ function populateTeamDutyMemberSelect(){
     document.getElementById('teamDutyEnd').value = sched?sched.end||'':'';
   };
 }
-async function saveTeamDuty(){
+async function saveTeamContactOnly(){
   const id=document.getElementById('teamDutyMemberSel').value;
   const phone=document.getElementById('teamDutyPhone').value.trim();
+  const errEl=document.getElementById('teamDutyErr'), okEl=document.getElementById('teamDutySuccess');
+  errEl.style.display='none'; okEl.style.display='none';
+  errEl.textContent='Please choose a team member and enter a phone number.';
+  if(!id||!phone){ errEl.style.display='block'; return; }
+  const btn=event.target; btn.disabled=true; const orig=btn.textContent; btn.textContent='Saving...';
+  await loadDB();
+  if(!DB.teamContacts) DB.teamContacts={};
+  DB.teamContacts[id]={contact:phone};
+  await saveDB();
+  okEl.style.display='block'; setTimeout(()=>okEl.style.display='none',3000);
+  renderTeamDutyRoster();
+  renderTeamContactsOnly();
+  btn.disabled=false; btn.textContent=orig;
+}
+async function saveTeamDutyOnly(){
+  const id=document.getElementById('teamDutyMemberSel').value;
   const date=document.getElementById('teamDutyDate').value;
   const start=document.getElementById('teamDutyStart').value;
   const end=document.getElementById('teamDutyEnd').value;
   const errEl=document.getElementById('teamDutyErr'), okEl=document.getElementById('teamDutySuccess');
   errEl.style.display='none'; okEl.style.display='none';
+  errEl.textContent='Please choose a team member and set a date, start, and end time.';
   if(!id||!date||!start||!end){ errEl.style.display='block'; return; }
   const btn=event.target; btn.disabled=true; const orig=btn.textContent; btn.textContent='Saving...';
   await loadDB();
-  if(phone){
-    if(!DB.teamContacts) DB.teamContacts={};
-    DB.teamContacts[id]={contact:phone};
-  }
   if(!DB.teamSchedules) DB.teamSchedules={};
   const prevReminder = DB.teamSchedules[id] && DB.teamSchedules[id].date===date && DB.teamSchedules[id].start===start && DB.teamSchedules[id].end===end ? {reminderSent:DB.teamSchedules[id].reminderSent, reminderSentAt:DB.teamSchedules[id].reminderSentAt} : {};
   DB.teamSchedules[id]=Object.assign({date,start,end}, prevReminder);
@@ -3882,7 +3902,7 @@ async function fhShowStage(id){
   if(id==='fh-timekeeper'){ renderGenericFormFields('timekeeper', TIMEKEEPER_FIELDS); document.getElementById('fh-timekeeper-err').style.display='none'; document.getElementById('fh-timekeeper-success').style.display='none'; }
   if(id==='fh-cover'){ renderGenericFormFields('cover', COVER_FIELDS); document.getElementById('fh-cover-err').style.display='none'; document.getElementById('fh-cover-success').style.display='none'; }
   if(id==='fh-logbook'){ await loadDB(); lbSetType('activity'); renderLogbookList(); }
-  if(id==='fh-qtracker'){ await loadDB(); qtPopulateGuestSelect(); }
+  if(id==='fh-qtracker'){ if(!qtDirty){ await loadDB(); } qtPopulateGuestSelect(); updateQtSaveButton(); }
 }
 function fhBackToMenu(){ fhShowStage('fh-menu-stage'); }
 
@@ -4196,11 +4216,38 @@ function qtLoadGuestQuestions(){
     <div style="font-size:0.78rem;"><strong>Q${i+1}:</strong> ${qHtml(q.text)}</div>
   </div>`).join('');
 }
-async function qtToggleAsked(id, checked){
-  await loadDB();
+function qtToggleAsked(id, checked){
   const q=(DB.questions||[]).find(x=>x.id===id);
-  if(q){ q.asked=checked; await saveDB(); }
+  if(q){ q.asked=checked; }
+  qtDirty=true;
   qtLoadGuestQuestions();
+  updateQtSaveButton();
+}
+function updateQtSaveButton(){
+  const btn=document.getElementById('qtSaveBtn');
+  if(!btn) return;
+  if(qtDirty){
+    btn.textContent='💾 Save Changes (unsaved)';
+    btn.style.background='#FF8A3D';
+    btn.style.borderColor='#FF8A3D';
+  }else{
+    btn.textContent='💾 Save Changes';
+    btn.style.background='';
+    btn.style.borderColor='';
+  }
+}
+async function qtSaveChanges(){
+  const statusEl=document.getElementById('qtSaveStatus');
+  const btn=document.getElementById('qtSaveBtn');
+  btn.disabled=true; const orig=btn.textContent; btn.textContent='Saving...';
+  statusEl.style.color='var(--muted)'; statusEl.textContent='Saving...';
+  await saveDB();
+  qtDirty=false;
+  updateQtSaveButton();
+  statusEl.style.color='#7FE0A8';
+  statusEl.textContent='✓ Saved!';
+  setTimeout(()=>{ if(!qtDirty) statusEl.textContent=''; }, 2500);
+  btn.disabled=false;
 }
 
 window.addEventListener('DOMContentLoaded', ()=>{
@@ -4369,12 +4416,14 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closePortal();});
     <div id="fh-qtracker" style="display:none;">
       <a onclick="fhBackToMenu()" style="color:var(--muted);font-size:0.78rem;cursor:pointer;display:inline-block;margin-bottom:0.8rem;">&#8592; Back to Forms Menu</a>
       <h3 style="color:#7FE0A8;">&#9989; Question Tracker</h3>
-      <div class="bm-guest">Select a guest to see their questions and check off which ones have been asked — no retyping needed.</div>
+      <div class="bm-guest">Select a guest to see their questions and check off which ones have been asked — no retyping needed. Tick as many as you like, then hit Save Changes once (this avoids overloading the database when checking off several at once).</div>
       <select class="tr-select" id="qtGuestSelect" onchange="qtLoadGuestQuestions()" style="margin-top:0.6rem;">
         <option value="">-- Choose a Guest --</option>
       </select>
       <div id="qtSummary" style="font-size:0.78rem;color:var(--muted);margin:0.6rem 0;"></div>
       <div id="qtList" style="max-height:340px;overflow-y:auto;"></div>
+      <button class="pm-btn gold" id="qtSaveBtn" style="width:auto;padding:11px 28px;margin-top:0.75rem;" onclick="qtSaveChanges()">&#128190; Save Changes</button>
+      <div id="qtSaveStatus" style="font-size:0.78rem;margin-top:6px;"></div>
     </div>
 
   </div>
