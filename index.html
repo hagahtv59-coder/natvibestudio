@@ -1088,6 +1088,11 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
           <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">Private admin info only — never shown on the public website. Pick a team member, add their phone, and set exactly when their shift runs. Save it, then hit Send whenever you're ready to text them.</div>
           <select class="adm-select" id="teamDutyMemberSel" style="margin-bottom:0.6rem;"><option value="">-- Choose a Team Member --</option></select>
           <input type="tel" class="pm-inp" id="teamDutyPhone" placeholder="Phone Number (e.g. 024 123 4567)" style="margin-bottom:0.6rem;"/>
+          <input type="email" class="pm-inp" id="teamDutyEmail" placeholder="Email" style="margin-bottom:0.6rem;"/>
+          <div style="display:flex;gap:0.6rem;margin-bottom:0.6rem;">
+            <input type="text" class="pm-inp" id="teamDutyNationality" placeholder="Nationality" style="flex:1;"/>
+            <input type="text" class="pm-inp" id="teamDutyLocation" placeholder="Location / City" style="flex:1;"/>
+          </div>
           <div class="adm-label" style="font-size:0.78rem;margin-bottom:0.35rem;color:var(--muted);">Date</div>
           <input type="date" class="pm-inp" id="teamDutyDate" style="margin-bottom:0.6rem;"/>
           <div style="display:flex;gap:0.6rem;margin-bottom:0.75rem;">
@@ -1119,6 +1124,28 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
             <div style="font-size:0.7rem;color:var(--muted);margin-top:6px;">Skips anyone already sent — safe to click again later for newly-added members.</div>
           </div>
           <div id="teamBulkStatus" style="font-size:0.78rem;margin-top:8px;"></div>
+        </div>
+
+        <div style="background:rgba(46,233,255,0.06);border:1px solid rgba(46,233,255,0.3);border-radius:4px;padding:1.1rem 1.25rem;margin-bottom:1.5rem;">
+          <div class="adm-label" style="margin-bottom:0.4rem;">&#128260; Witness Rotation (Auto-Fill for Witness Statement Form)</div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">Set the order of your 6 witnesses. Once you hit Start, the Witness Statement form will automatically fill in whoever's turn it currently is — name, phone, email, nationality — so they only have to type what they actually observed. (Timekeeper gets its own separate rotation next, once this one's working well.)</div>
+          <div style="display:flex;gap:0.6rem;margin-bottom:0.6rem;align-items:flex-end;flex-wrap:wrap;">
+            <div style="flex:1;min-width:180px;">
+              <div class="adm-label" style="font-size:0.78rem;margin-bottom:0.35rem;color:var(--muted);">Add Member to Rotation Order</div>
+              <select class="adm-select" id="rotationAddSel"><option value="">-- Choose a Team Member --</option></select>
+            </div>
+            <button class="pm-btn" style="background:rgba(255,255,255,0.08);width:auto;padding:11px 20px;" onclick="addToRotation()">&#43; Add</button>
+          </div>
+          <div id="rotationOrderList" style="margin-bottom:0.75rem;"></div>
+          <div style="display:flex;gap:0.6rem;align-items:flex-end;flex-wrap:wrap;margin-bottom:0.75rem;">
+            <div>
+              <div class="adm-label" style="font-size:0.78rem;margin-bottom:0.35rem;color:var(--muted);">Slot Length (hours)</div>
+              <input type="number" min="1" class="pm-inp" id="rotationSlotHours" style="width:90px;" value="4" onchange="saveRotationSlotHours()"/>
+            </div>
+          </div>
+          <button class="pm-btn gold" style="width:auto;padding:11px 24px;" onclick="startShiftRotation()">&#9654; Start Marathon Rotation Now</button>
+          <button class="pm-btn" style="background:rgba(255,90,90,0.15);border:1px solid rgba(255,90,90,0.4);color:#FF8A8A;width:auto;padding:11px 20px;margin-left:8px;" onclick="stopShiftRotation()">&#9632; Stop Rotation</button>
+          <div id="rotationStatusBox" style="margin-top:0.9rem;padding-top:0.9rem;border-top:1px solid rgba(255,255,255,0.1);font-size:0.85rem;"></div>
         </div>
 
         <div style="background:rgba(255,200,87,0.06);border:1px solid rgba(255,200,87,0.3);border-radius:4px;padding:1.1rem 1.25rem;margin-bottom:1.5rem;">
@@ -1305,14 +1332,20 @@ const GUESTS=[
 // the public page.
 const DB_API = "/api/db";
 
-let DB = {questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[], smsSettings:{template:''}, scheduledSms:[], teamContacts:{}, teamSchedules:{}};
+let DB = {questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[], smsSettings:{template:''}, scheduledSms:[], teamContacts:{}, teamSchedules:{}, rotations:{witness:{members:[],slotHours:4,startAt:null}}};
 
-async function loadDB(){
+let _lastLoadTime=0;
+const LOAD_CACHE_MS=4000; // rapid repeated loadDB() calls (e.g. switching tabs, several saves in a row) reuse the same data instead of each firing a fresh request
+async function loadDB(force){
+  if(!force && DB && _lastLoadTime && (Date.now()-_lastLoadTime)<LOAD_CACHE_MS){
+    return true; // recently loaded — skip the network round-trip
+  }
   try{
     const res = await fetch(DB_API, {method:"GET", cache:"no-store"});
     const json = await res.json();
     if(!res.ok || !json.ok){ throw new Error(json.error || ("HTTP "+res.status)); }
     DB = json.data || {};
+    _lastLoadTime=Date.now();
     if(!DB.questions) DB.questions=[];
     if(!DB.accesses) DB.accesses=0;
     if(!DB.guests) DB.guests=[];
@@ -1379,7 +1412,7 @@ function restoreBackup(event){
       event.target.value='';
       return;
     }
-    DB = Object.assign({questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[], smsSettings:{template:''}, scheduledSms:[], teamContacts:{}, teamSchedules:{}}, parsed);
+    DB = Object.assign({questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[], smsSettings:{template:''}, scheduledSms:[], teamContacts:{}, teamSchedules:{}, rotations:{witness:{members:[],slotHours:4,startAt:null}}}, parsed);
     const saved=await saveDB();
     event.target.value='';
     if(saved){
@@ -1403,6 +1436,7 @@ async function saveDB(){
       alert("⚠ SAVE FAILED for: "+msg+". That part of your change was NOT saved — it will disappear on refresh.");
       return false;
     }
+    _lastLoadTime=Date.now(); // what's in memory now matches what's saved — no need to immediately re-fetch
     return true;
   }catch(e){
     alert("⚠ SAVE FAILED (network error): "+e.message+". That part of your change was NOT saved — it will disappear on refresh.");
@@ -2096,7 +2130,7 @@ function switchAdmTab(id){
   if(id==='adm-media'){renderAdminGallery();renderAdminVideos();}
   if(id==='adm-cfg'){renderAdminApplications();}
   if(id==='adm-site'){loadSiteContentFields();renderAdminMediaPartners();renderAdminSponsors();}
-  if(id==='adm-team'){renderAdminTeam();populateDutiesRoleSelect();populateTeamDutyMemberSelect();renderTeamDutyRoster();renderTeamContactsOnly();document.getElementById('teamTemplateText').value=(DB.smsSettings && DB.smsSettings.teamTemplate)||'';}
+  if(id==='adm-team'){renderAdminTeam();populateDutiesRoleSelect();populateTeamDutyMemberSelect();renderTeamDutyRoster();renderTeamContactsOnly();populateRotationAddSelect();renderRotationOrderList();document.getElementById('rotationSlotHours').value=(DB.rotations && DB.rotations.witness && DB.rotations.witness.slotHours)||4;renderRotationStatus();document.getElementById('teamTemplateText').value=(DB.smsSettings && DB.smsSettings.teamTemplate)||'';}
   if(id==='adm-checkin'){renderAdminCheckins();}
 }
 function updateAdmStats(){
@@ -3533,6 +3567,9 @@ function populateTeamDutyMemberSelect(){
     const contact=(DB.teamContacts||{})[id];
     const sched=(DB.teamSchedules||{})[id];
     document.getElementById('teamDutyPhone').value = contact?contact.contact||'':'';
+    document.getElementById('teamDutyEmail').value = contact?contact.email||'':'';
+    document.getElementById('teamDutyNationality').value = contact?contact.nationality||'':'';
+    document.getElementById('teamDutyLocation').value = contact?contact.location||'':'';
     document.getElementById('teamDutyDate').value = sched?sched.date||'':'';
     document.getElementById('teamDutyStart').value = sched?sched.start||'':'';
     document.getElementById('teamDutyEnd').value = sched?sched.end||'':'';
@@ -3541,6 +3578,9 @@ function populateTeamDutyMemberSelect(){
 async function saveTeamContactOnly(){
   const id=document.getElementById('teamDutyMemberSel').value;
   const phone=document.getElementById('teamDutyPhone').value.trim();
+  const email=document.getElementById('teamDutyEmail').value.trim();
+  const nationality=document.getElementById('teamDutyNationality').value.trim();
+  const location=document.getElementById('teamDutyLocation').value.trim();
   const errEl=document.getElementById('teamDutyErr'), okEl=document.getElementById('teamDutySuccess');
   errEl.style.display='none'; okEl.style.display='none';
   errEl.textContent='Please choose a team member and enter a phone number.';
@@ -3548,7 +3588,7 @@ async function saveTeamContactOnly(){
   const btn=event.target; btn.disabled=true; const orig=btn.textContent; btn.textContent='Saving...';
   await loadDB();
   if(!DB.teamContacts) DB.teamContacts={};
-  DB.teamContacts[id]={contact:phone};
+  DB.teamContacts[id]={contact:phone, email, nationality, location};
   await saveDB();
   okEl.style.display='block'; setTimeout(()=>okEl.style.display='none',3000);
   renderTeamDutyRoster();
@@ -3628,6 +3668,145 @@ async function sendTeamBroadcast(){
   statusEl.style.color = failed ? '#FFC857' : '#7FE0A8';
   statusEl.textContent = `✓ Done. Sent: ${sent}${failed?(', Failed: '+failed):''} of ${ids.length}.`;
   btn.disabled=false; btn.textContent=orig;
+}
+/* ===== SHIFT ROTATION (per role — currently set up for Witness; Timekeeper gets its own next) ===== */
+function populateRotationAddSelect(){
+  const sel=document.getElementById('rotationAddSel');
+  if(!sel) return;
+  const members=(DB.teamMembers||[]).slice().sort((a,b)=>a.name.localeCompare(b.name));
+  sel.innerHTML='<option value="">-- Choose a Team Member --</option>'+members.map(m=>`<option value="${m.id}">${m.name}${m.role?(' — '+m.role):''}</option>`).join('');
+}
+function ensureRotation(role){
+  if(!DB.rotations) DB.rotations={};
+  if(!DB.rotations[role]) DB.rotations[role]={members:[],slotHours:4,startAt:null};
+  if(!DB.rotations[role].members) DB.rotations[role].members=[];
+  return DB.rotations[role];
+}
+async function addToRotation(){
+  const id=document.getElementById('rotationAddSel').value;
+  if(!id) return;
+  await loadDB();
+  const rot=ensureRotation('witness');
+  if(rot.members.includes(String(id))){ alert('This person is already in the Witness rotation.'); return; }
+  rot.members.push(id);
+  await saveDB();
+  renderRotationOrderList();
+}
+async function removeFromRotationAt(index){
+  await loadDB();
+  const rot=ensureRotation('witness');
+  rot.members.splice(index,1);
+  await saveDB();
+  renderRotationOrderList();
+}
+async function moveRotationItem(index, dir){
+  await loadDB();
+  const rot=ensureRotation('witness');
+  const arr=rot.members;
+  const newIndex=index+dir;
+  if(newIndex<0||newIndex>=arr.length) return;
+  [arr[index],arr[newIndex]]=[arr[newIndex],arr[index]];
+  await saveDB();
+  renderRotationOrderList();
+}
+function renderRotationOrderList(){
+  const box=document.getElementById('rotationOrderList');
+  if(!box) return;
+  const rot=(DB.rotations && DB.rotations.witness) || {members:[]};
+  const ids=rot.members||[];
+  const members=DB.teamMembers||[];
+  if(!ids.length){ box.innerHTML='<div style="color:var(--muted);font-size:0.8rem;padding:0.5rem 0;">No one added to the Witness rotation yet.</div>'; return; }
+  box.innerHTML=ids.map((id,i)=>{
+    const m=members.find(x=>String(x.id)===String(id));
+    const name=m?m.name:'(deleted member)';
+    return `<div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.04);border-radius:3px;padding:6px 10px;margin-bottom:5px;">
+      <span style="font-weight:700;color:var(--gold);min-width:20px;">${i+1}.</span>
+      <span style="flex:1;font-size:0.85rem;">${qHtml(name)}</span>
+      <button class="adm-del" style="padding:4px 8px;" onclick="moveRotationItem(${i},-1)">&#8593;</button>
+      <button class="adm-del" style="padding:4px 8px;" onclick="moveRotationItem(${i},1)">&#8595;</button>
+      <button class="adm-del" onclick="removeFromRotationAt(${i})">&#128465;</button>
+    </div>`;
+  }).join('');
+}
+async function saveRotationSlotHours(){
+  const hours=parseInt(document.getElementById('rotationSlotHours').value)||4;
+  await loadDB();
+  ensureRotation('witness').slotHours=hours;
+  await saveDB();
+  renderRotationStatus();
+}
+async function startShiftRotation(){
+  await loadDB();
+  const rot=ensureRotation('witness');
+  if(!rot.members.length){
+    alert('Add at least one person to the Witness rotation order first.');
+    return;
+  }
+  rot.startAt=new Date().toISOString();
+  await saveDB();
+  renderRotationStatus();
+  alert('✓ Witness rotation started! The Witness Statement form will now auto-fill whoever\'s turn it is.');
+}
+async function stopShiftRotation(){
+  if(!confirm('Stop the Witness rotation? The form will go back to blank until you start it again.'))return;
+  await loadDB();
+  const rot=ensureRotation('witness');
+  rot.startAt=null;
+  await saveDB();
+  renderRotationStatus();
+}
+// Returns the team member whose turn it currently is for a given rotation
+// role (e.g. 'witness'), or null if that rotation isn't running.
+function getCurrentRotationMember(role){
+  const rot=DB.rotations && DB.rotations[role];
+  if(!rot || !rot.startAt || !rot.members || !rot.members.length) return null;
+  const slotMs=(rot.slotHours||4)*3600000;
+  const elapsed=Date.now()-new Date(rot.startAt).getTime();
+  if(elapsed<0) return null;
+  const slotIndex=Math.floor(elapsed/slotMs)%rot.members.length;
+  const id=rot.members[slotIndex];
+  const m=(DB.teamMembers||[]).find(x=>String(x.id)===String(id));
+  if(!m) return null;
+  const contact=(DB.teamContacts||{})[id]||{};
+  const turnEndsAt=new Date(new Date(rot.startAt).getTime() + (Math.floor(elapsed/slotMs)+1)*slotMs);
+  return {id, name:m.name, role:m.role, contact:contact.contact||'', email:contact.email||'', nationality:contact.nationality||'', location:contact.location||'', turnEndsAt};
+}
+async function autoFillRotationFields(prefix, role){
+  await loadDB();
+  const current=getCurrentRotationMember(role);
+  const container=document.getElementById('fh-'+prefix+'-fields');
+  if(!current){
+    return;
+  }
+  const nameParts=current.name.trim().split(/\s+/);
+  const firstName=nameParts[0]||'';
+  const lastName=nameParts.slice(1).join(' ')||'';
+  const setVal=(id,val)=>{ if(!val) return; const el=document.getElementById(prefix+'-'+id); if(el && !el.value) el.value=val; };
+  setVal('name', current.name);
+  setVal('firstName', firstName);
+  setVal('lastName', lastName);
+  setVal('email', current.email);
+  setVal('phone', current.contact);
+  setVal('nationality', current.nationality);
+  if(container){
+    const banner=document.createElement('div');
+    banner.style.cssText='background:rgba(46,233,255,0.1);border:1px solid rgba(46,233,255,0.3);border-radius:3px;padding:8px 12px;margin-bottom:0.8rem;font-size:0.75rem;color:#7FE0A8;';
+    banner.innerHTML='&#128260; Auto-filled for <strong>'+qHtml(current.name)+'</strong> — your turn until '+current.turnEndsAt.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})+'. Not you? Just edit the fields below.';
+    container.insertBefore(banner, container.firstChild);
+  }
+}
+function renderRotationStatus(){
+  const box=document.getElementById('rotationStatusBox');
+  if(!box) return;
+  const rot=DB.rotations && DB.rotations.witness;
+  const current=getCurrentRotationMember('witness');
+  if(!current){
+    box.innerHTML = (rot && rot.startAt===null && rot.members && rot.members.length)
+      ? '<span style="color:var(--muted);">Witness rotation is set up but not started yet.</span>'
+      : '<span style="color:var(--muted);">No Witness rotation running.</span>';
+    return;
+  }
+  box.innerHTML = `<span style="color:#7FE0A8;">&#9989; Currently on duty: <strong>${qHtml(current.name)}</strong>${current.role?(' — '+qHtml(current.role)):''}</span><br><span style="color:var(--muted);font-size:0.75rem;">Until ${current.turnEndsAt.toLocaleString()}</span>`;
 }
 function renderTeamDutyRoster(){
   const box=document.getElementById('admTeamDutyList');
@@ -3898,7 +4077,7 @@ async function fhShowStage(id){
   FH_STAGE_IDS.forEach(s=>document.getElementById(s).style.display='none');
   document.getElementById(id).style.display='block';
   if(id==='fh-steward'){ renderGenericFormFields('steward', STEWARD_FIELDS); document.getElementById('fh-steward-err').style.display='none'; document.getElementById('fh-steward-success').style.display='none'; }
-  if(id==='fh-witness'){ renderGenericFormFields('witness', WITNESS_FIELDS); document.getElementById('fh-witness-err').style.display='none'; document.getElementById('fh-witness-success').style.display='none'; }
+  if(id==='fh-witness'){ renderGenericFormFields('witness', WITNESS_FIELDS); document.getElementById('fh-witness-err').style.display='none'; document.getElementById('fh-witness-success').style.display='none'; document.getElementById('witnessSummaryBox').style.display='none'; autoFillRotationFields('witness','witness'); }
   if(id==='fh-timekeeper'){ renderGenericFormFields('timekeeper', TIMEKEEPER_FIELDS); document.getElementById('fh-timekeeper-err').style.display='none'; document.getElementById('fh-timekeeper-success').style.display='none'; }
   if(id==='fh-cover'){ renderGenericFormFields('cover', COVER_FIELDS); document.getElementById('fh-cover-err').style.display='none'; document.getElementById('fh-cover-success').style.display='none'; }
   if(id==='fh-logbook'){ await loadDB(); lbSetType('activity'); renderLogbookList(); }
@@ -3948,7 +4127,32 @@ function buildStatementPDF(formTitle, fields, values){
   doc.setTextColor(0);
   return doc;
 }
-async function submitGenericForm(prefix, fields, formTitle, requiredIds){
+function buildWitnessSummary(values){
+  const name=[values.firstName, values.lastName].filter(Boolean).join(' ') || 'The witness';
+  const venue=[values.venue, values.city, values.country].filter(Boolean).join(', ');
+  const parts=[];
+  let opening=name+', witnessing the '+(values.recordTitle||'record')+' attempt';
+  if(venue) opening+=' at '+venue;
+  if(values.when) opening+=' during '+values.when;
+  opening+=', reports:';
+  parts.push(opening);
+  parts.push('');
+  parts.push(values.observed || '(no observation entered)');
+  if(values.finalMeasurement){
+    parts.push('');
+    parts.push('Final measurement recorded: '+values.finalMeasurement+'.');
+  }
+  return parts.join('\n');
+}
+function copyWitnessSummary(){
+  const text=document.getElementById('witnessSummaryText').textContent;
+  navigator.clipboard.writeText(text).then(()=>{
+    alert('✓ Summary copied — paste it wherever you need it.');
+  }).catch(()=>{
+    prompt('Copy this manually:', text);
+  });
+}
+async function submitGenericForm(prefix, fields, formTitle, requiredIds, summaryBuilder){
   const values={};
   fields.forEach(f=>{
     const elId=prefix+'-'+f.id;
@@ -3985,6 +4189,14 @@ async function submitGenericForm(prefix, fields, formTitle, requiredIds){
     const fname=formTitle.replace(/\s+/g,'_').toLowerCase()+'-'+String(nameVal).replace(/[^a-z0-9]/gi,'_').toLowerCase()+'.pdf';
     await sendTGDocument(blob, fname, '📋 '+formTitle+' submitted by '+nameVal);
     okEl.style.display='block';
+    if(summaryBuilder){
+      const summaryBox=document.getElementById(prefix+'SummaryBox');
+      const summaryText=document.getElementById(prefix+'SummaryText');
+      if(summaryBox && summaryText){
+        summaryText.textContent=summaryBuilder(values);
+        summaryBox.style.display='block';
+      }
+    }
     fields.forEach(f=>{
       const elId=prefix+'-'+f.id;
       if(f.type==='checkbox'){ const el=document.getElementById(elId); if(el) el.checked=false; }
@@ -4365,9 +4577,14 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closePortal();});
       <a onclick="fhBackToMenu()" style="color:var(--muted);font-size:0.78rem;cursor:pointer;display:inline-block;margin-bottom:0.8rem;">&#8592; Back to Forms Menu</a>
       <h3 style="color:var(--gold);">&#128065; Witness Statement</h3>
       <div id="fh-witness-fields"></div>
-      <button class="pm-btn" style="background:#FFC857;border-color:#FFC857;color:#1A0308;margin-top:0.6rem;" onclick="submitGenericForm('witness', WITNESS_FIELDS, 'Witness Statement')">Submit &amp; Send PDF</button>
+      <button class="pm-btn" style="background:#FFC857;border-color:#FFC857;color:#1A0308;margin-top:0.6rem;" onclick="submitGenericForm('witness', WITNESS_FIELDS, 'Witness Statement', null, buildWitnessSummary)">Submit &amp; Send PDF</button>
       <div class="pm-err" id="fh-witness-err">Please fill in your name and signature at least.</div>
       <div class="bm-success" id="fh-witness-success">&#10003; Submitted! A PDF copy has been sent to the admin.</div>
+      <div id="witnessSummaryBox" style="display:none;background:rgba(46,233,255,0.08);border:1px solid rgba(46,233,255,0.3);border-radius:4px;padding:1rem;margin-top:1rem;">
+        <div style="font-size:0.72rem;color:#7FE0A8;font-weight:700;margin-bottom:0.5rem;">&#128203; AUTO-GENERATED SUMMARY — copy this wherever you're asked what you observed:</div>
+        <div id="witnessSummaryText" style="font-size:0.85rem;white-space:pre-line;line-height:1.6;margin-bottom:0.75rem;"></div>
+        <button class="pm-btn" style="background:rgba(255,255,255,0.1);width:auto;padding:9px 20px;font-size:0.8rem;" onclick="copyWitnessSummary()">&#128203; Copy Summary</button>
+      </div>
     </div>
 
     <!-- COVER LETTER -->
