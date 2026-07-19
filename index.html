@@ -1133,9 +1133,14 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
 
         <div style="background:rgba(155,89,255,0.06);border:1px solid rgba(155,89,255,0.3);border-radius:4px;padding:1.1rem 1.25rem;margin-bottom:1.5rem;">
           <div class="adm-label" style="margin-bottom:0.4rem;">&#9989; Observation Checklist (for Witness Statement)</div>
-          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">Add quick yes/no questions witnesses can tick instead of typing everything from scratch — e.g. "Cameras were visible and recording," "Guests were speaking clearly." Each one gets a Yes/No plus an optional detail box, and their answers automatically get written up into a proper observation paragraph.</div>
-          <div style="display:flex;gap:0.6rem;margin-bottom:0.6rem;">
-            <input type="text" class="pm-inp" id="checklistNewQ" placeholder="e.g. Cameras were visible and recording throughout" style="flex:1;"/>
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">Add quick questions witnesses can answer instead of typing everything from scratch. Choose the right type for each one — a plain Yes/No, a Yes/No that also needs a bit of detail, or a question that needs an actual typed/number answer (like "how many minutes were carried forward?"). Their answers automatically get written up into a proper observation paragraph.</div>
+          <div style="display:flex;gap:0.6rem;margin-bottom:0.6rem;flex-wrap:wrap;">
+            <input type="text" class="pm-inp" id="checklistNewQ" placeholder="e.g. How many minutes were carried forward?" style="flex:1;min-width:200px;"/>
+            <select class="adm-select" id="checklistNewType" style="width:auto;">
+              <option value="yesno">Yes / No</option>
+              <option value="yesno_detail">Yes / No + details</option>
+              <option value="text">Typed Answer (no yes/no)</option>
+            </select>
             <button class="pm-btn" style="background:rgba(255,255,255,0.08);width:auto;padding:11px 20px;" onclick="addChecklistQuestion()">&#43; Add</button>
           </div>
           <div id="checklistQList"></div>
@@ -3743,11 +3748,12 @@ async function autoFillWitnessDefaults(){
    automatically, instead of typing everything from scratch. */
 async function addChecklistQuestion(){
   const input=document.getElementById('checklistNewQ');
+  const typeSel=document.getElementById('checklistNewType');
   const text=input.value.trim();
   if(!text) return;
   await loadDB();
   if(!DB.witnessChecklist) DB.witnessChecklist=[];
-  DB.witnessChecklist.push({id:Date.now(), text});
+  DB.witnessChecklist.push({id:Date.now(), text, type:typeSel.value});
   await saveDB();
   input.value='';
   renderChecklistQList();
@@ -3759,13 +3765,18 @@ async function removeChecklistQuestion(id){
   await saveDB();
   renderChecklistQList();
 }
+function checklistTypeLabel(type){
+  if(type==='text') return 'Typed Answer';
+  if(type==='yesno_detail') return 'Yes/No + details';
+  return 'Yes/No';
+}
 function renderChecklistQList(){
   const box=document.getElementById('checklistQList');
   if(!box) return;
   const list=DB.witnessChecklist||[];
   if(!list.length){ box.innerHTML='<div style="color:var(--muted);font-size:0.8rem;padding:0.5rem 0;">No checklist questions yet — add one above.</div>'; return; }
   box.innerHTML=list.map((q,i)=>`<div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.04);border-radius:3px;padding:6px 10px;margin-bottom:5px;">
-    <span style="flex:1;font-size:0.85rem;">${i+1}. ${qHtml(q.text)}</span>
+    <span style="flex:1;font-size:0.85rem;">${i+1}. ${qHtml(q.text)} <span style="color:var(--muted);font-size:0.68rem;">(${checklistTypeLabel(q.type)})</span></span>
     <button class="adm-del" onclick="removeChecklistQuestion(${q.id})">&#128465;</button>
   </div>`).join('');
 }
@@ -3774,15 +3785,24 @@ function renderWitnessChecklistForm(){
   if(!box) return;
   const list=DB.witnessChecklist||[];
   if(!list.length){ box.innerHTML=''; return; }
-  box.innerHTML='<div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.6rem;">Quick checklist — tick what applies, add detail if you want, and it\'ll be written up for you automatically below.</div>'
-    + list.map(q=>`<div style="background:rgba(255,255,255,0.04);border-radius:3px;padding:0.7rem;margin-bottom:0.6rem;">
+  box.innerHTML='<div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.6rem;">Quick checklist — answer what applies, and it\'ll be written up for you automatically below.</div>'
+    + list.map(q=>{
+      if(q.type==='text'){
+        return `<div style="background:rgba(255,255,255,0.04);border-radius:3px;padding:0.7rem;margin-bottom:0.6rem;">
+          <div style="font-size:0.82rem;margin-bottom:0.5rem;">${qHtml(q.text)}</div>
+          <input type="text" class="pm-inp" id="cl-answer-${q.id}" placeholder="Type your answer" style="width:100%;"/>
+        </div>`;
+      }
+      const detailPlaceholder = q.type==='yesno_detail' ? 'Add details' : 'Add details (optional)';
+      return `<div style="background:rgba(255,255,255,0.04);border-radius:3px;padding:0.7rem;margin-bottom:0.6rem;">
         <div style="font-size:0.82rem;margin-bottom:0.5rem;">${qHtml(q.text)}</div>
         <div style="display:flex;gap:16px;margin-bottom:0.5rem;">
           <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;cursor:pointer;"><input type="radio" name="cl-${q.id}" value="Yes"/> Yes</label>
           <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;cursor:pointer;"><input type="radio" name="cl-${q.id}" value="No"/> No</label>
         </div>
-        <input type="text" class="pm-inp" id="cl-detail-${q.id}" placeholder="Add details (optional)" style="width:100%;"/>
-      </div>`).join('');
+        <input type="text" class="pm-inp" id="cl-detail-${q.id}" placeholder="${detailPlaceholder}" style="width:100%;"/>
+      </div>`;
+    }).join('');
 }
 // Turns the checklist answers into a written paragraph and merges it with
 // whatever the witness typed in "Anything else to add?" before the form submits.
@@ -3790,6 +3810,11 @@ function composeWitnessObservation(){
   const list=DB.witnessChecklist||[];
   const lines=[];
   list.forEach(q=>{
+    if(q.type==='text'){
+      const answer=(document.getElementById('cl-answer-'+q.id)||{}).value||'';
+      if(answer.trim()) lines.push(q.text+': '+answer.trim());
+      return;
+    }
     const checked=document.querySelector(`input[name="cl-${q.id}"]:checked`);
     if(!checked) return;
     const detail=(document.getElementById('cl-detail-'+q.id)||{}).value||'';
