@@ -132,7 +132,8 @@ module.exports = async (req, res) => {
         scheduleSettings: DB.scheduleSettings || { defaultDuration: 40 }, adminNotes: DB.adminNotes || [],
         smsSettings: DB.smsSettings || { template: "" }, scheduledSms: DB.scheduledSms || [],
         teamContacts: DB.teamContacts || {}, teamSchedules: DB.teamSchedules || {},
-        rotations: DB.rotations || { witness: { members: [], slotHours: 4, startAt: null } }
+        rotations: DB.rotations || { witness: { members: [], slotHours: 4, startAt: null } },
+        witnessDefaults: DB.witnessDefaults || {}
       };
 
       const failures = [];
