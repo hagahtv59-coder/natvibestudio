@@ -1148,6 +1148,24 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
           <div id="rotationStatusBox" style="margin-top:0.9rem;padding-top:0.9rem;border-top:1px solid rgba(255,255,255,0.1);font-size:0.85rem;"></div>
         </div>
 
+        <div style="background:rgba(212,175,55,0.06);border:1px solid rgba(212,175,55,0.3);border-radius:4px;padding:1.1rem 1.25rem;margin-bottom:1.5rem;">
+          <div class="adm-label" style="margin-bottom:0.4rem;">&#128204; Witness Statement Defaults</div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">Fill these in once — they stay the same for every witness all marathon long, so they auto-fill every time the form opens. "When were you present" fills in automatically from the rotation's actual shift time, so it's not listed here.</div>
+          <div style="display:flex;gap:0.6rem;margin-bottom:0.6rem;">
+            <input type="text" class="pm-inp" id="wdRecordTitle" placeholder="Record Title" style="flex:1;"/>
+            <input type="text" class="pm-inp" id="wdAppRef" placeholder="Application Reference Number" style="flex:1;"/>
+          </div>
+          <input type="text" class="pm-inp" id="wdOrganisation" placeholder="Organisation" style="margin-bottom:0.6rem;"/>
+          <div style="display:flex;gap:0.6rem;margin-bottom:0.6rem;">
+            <input type="text" class="pm-inp" id="wdVenue" placeholder="Venue" style="flex:1;"/>
+            <input type="text" class="pm-inp" id="wdCity" placeholder="City/Town" style="flex:1;"/>
+            <input type="text" class="pm-inp" id="wdCountry" placeholder="Country" style="flex:1;"/>
+          </div>
+          <textarea class="pm-inp" id="wdExpertise" rows="2" placeholder="My field of expertise is (reason for witnessing the record attempt)" style="width:100%;resize:vertical;margin-bottom:0.6rem;"></textarea>
+          <button class="pm-btn" style="background:#3DB871;border-color:#3DB871;width:auto;padding:9px 20px;font-size:0.8rem;" onclick="saveWitnessDefaults()">&#128190; Save Defaults</button>
+          <span id="wdSaved" style="display:none;color:#7FE0A8;font-size:0.75rem;margin-left:8px;">&#10003; Saved</span>
+        </div>
+
         <div style="background:rgba(255,200,87,0.06);border:1px solid rgba(255,200,87,0.3);border-radius:4px;padding:1.1rem 1.25rem;margin-bottom:1.5rem;">
           <div class="adm-label" style="margin-bottom:0.4rem;">&#128172; Send One Message To Everyone</div>
           <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">A one-off broadcast — not tied to duty times. Goes to every team member with a saved phone number, whether or not they have a duty assigned. You can use <code>{name}</code>.</div>
@@ -1332,7 +1350,7 @@ const GUESTS=[
 // the public page.
 const DB_API = "/api/db";
 
-let DB = {questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[], smsSettings:{template:''}, scheduledSms:[], teamContacts:{}, teamSchedules:{}, rotations:{witness:{members:[],slotHours:4,startAt:null}}};
+let DB = {questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[], smsSettings:{template:''}, scheduledSms:[], teamContacts:{}, teamSchedules:{}, rotations:{witness:{members:[],slotHours:4,startAt:null}}, witnessDefaults:{}};
 
 let _lastLoadTime=0;
 const LOAD_CACHE_MS=4000; // rapid repeated loadDB() calls (e.g. switching tabs, several saves in a row) reuse the same data instead of each firing a fresh request
@@ -1412,7 +1430,7 @@ function restoreBackup(event){
       event.target.value='';
       return;
     }
-    DB = Object.assign({questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[], smsSettings:{template:''}, scheduledSms:[], teamContacts:{}, teamSchedules:{}, rotations:{witness:{members:[],slotHours:4,startAt:null}}}, parsed);
+    DB = Object.assign({questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[], smsSettings:{template:''}, scheduledSms:[], teamContacts:{}, teamSchedules:{}, rotations:{witness:{members:[],slotHours:4,startAt:null}}, witnessDefaults:{}}, parsed);
     const saved=await saveDB();
     event.target.value='';
     if(saved){
@@ -2130,7 +2148,7 @@ function switchAdmTab(id){
   if(id==='adm-media'){renderAdminGallery();renderAdminVideos();}
   if(id==='adm-cfg'){renderAdminApplications();}
   if(id==='adm-site'){loadSiteContentFields();renderAdminMediaPartners();renderAdminSponsors();}
-  if(id==='adm-team'){renderAdminTeam();populateDutiesRoleSelect();populateTeamDutyMemberSelect();renderTeamDutyRoster();renderTeamContactsOnly();populateRotationAddSelect();renderRotationOrderList();document.getElementById('rotationSlotHours').value=(DB.rotations && DB.rotations.witness && DB.rotations.witness.slotHours)||4;renderRotationStatus();document.getElementById('teamTemplateText').value=(DB.smsSettings && DB.smsSettings.teamTemplate)||'';}
+  if(id==='adm-team'){renderAdminTeam();populateDutiesRoleSelect();populateTeamDutyMemberSelect();renderTeamDutyRoster();renderTeamContactsOnly();populateRotationAddSelect();renderRotationOrderList();document.getElementById('rotationSlotHours').value=(DB.rotations && DB.rotations.witness && DB.rotations.witness.slotHours)||4;renderRotationStatus();document.getElementById('teamTemplateText').value=(DB.smsSettings && DB.smsSettings.teamTemplate)||'';const wd=DB.witnessDefaults||{};document.getElementById('wdRecordTitle').value=wd.recordTitle||'';document.getElementById('wdAppRef').value=wd.appRef||'';document.getElementById('wdOrganisation').value=wd.organisation||'';document.getElementById('wdVenue').value=wd.venue||'';document.getElementById('wdCity').value=wd.city||'';document.getElementById('wdCountry').value=wd.country||'';document.getElementById('wdExpertise').value=wd.expertise||'';}
   if(id==='adm-checkin'){renderAdminCheckins();}
 }
 function updateAdmStats(){
@@ -3768,26 +3786,56 @@ function getCurrentRotationMember(role){
   const m=(DB.teamMembers||[]).find(x=>String(x.id)===String(id));
   if(!m) return null;
   const contact=(DB.teamContacts||{})[id]||{};
-  const turnEndsAt=new Date(new Date(rot.startAt).getTime() + (Math.floor(elapsed/slotMs)+1)*slotMs);
-  return {id, name:m.name, role:m.role, contact:contact.contact||'', email:contact.email||'', nationality:contact.nationality||'', location:contact.location||'', turnEndsAt};
+  const turnStartsAt=new Date(new Date(rot.startAt).getTime() + Math.floor(elapsed/slotMs)*slotMs);
+  const turnEndsAt=new Date(turnStartsAt.getTime() + slotMs);
+  return {id, name:m.name, role:m.role, contact:contact.contact||'', email:contact.email||'', nationality:contact.nationality||'', location:contact.location||'', turnStartsAt, turnEndsAt};
+}
+async function saveWitnessDefaults(){
+  await loadDB();
+  if(!DB.witnessDefaults) DB.witnessDefaults={};
+  DB.witnessDefaults={
+    recordTitle: document.getElementById('wdRecordTitle').value.trim(),
+    appRef: document.getElementById('wdAppRef').value.trim(),
+    organisation: document.getElementById('wdOrganisation').value.trim(),
+    venue: document.getElementById('wdVenue').value.trim(),
+    city: document.getElementById('wdCity').value.trim(),
+    country: document.getElementById('wdCountry').value.trim(),
+    expertise: document.getElementById('wdExpertise').value.trim()
+  };
+  await saveDB();
+  const ok=document.getElementById('wdSaved');
+  ok.style.display='inline'; setTimeout(()=>ok.style.display='none',2500);
 }
 async function autoFillRotationFields(prefix, role){
   await loadDB();
   const current=getCurrentRotationMember(role);
   const container=document.getElementById('fh-'+prefix+'-fields');
+  const setVal=(id,val)=>{ if(!val) return; const el=document.getElementById(prefix+'-'+id); if(el && !el.value) el.value=val; };
+  // Event-wide defaults (same for everyone, all marathon long) — fill these regardless of whether the rotation is currently running
+  const wd=DB.witnessDefaults||{};
+  setVal('recordTitle', wd.recordTitle);
+  setVal('appRef', wd.appRef);
+  setVal('organisation', wd.organisation);
+  setVal('venue', wd.venue);
+  setVal('city', wd.city);
+  setVal('country', wd.country);
+  setVal('expertise', wd.expertise);
   if(!current){
     return;
   }
   const nameParts=current.name.trim().split(/\s+/);
   const firstName=nameParts[0]||'';
   const lastName=nameParts.slice(1).join(' ')||'';
-  const setVal=(id,val)=>{ if(!val) return; const el=document.getElementById(prefix+'-'+id); if(el && !el.value) el.value=val; };
   setVal('name', current.name);
   setVal('firstName', firstName);
   setVal('lastName', lastName);
   setVal('email', current.email);
   setVal('phone', current.contact);
   setVal('nationality', current.nationality);
+  const dateStr=current.turnStartsAt.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+  const startStr=current.turnStartsAt.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  const endStr=current.turnEndsAt.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  setVal('when', dateStr+', '+startStr+' - '+endStr);
   if(container){
     const banner=document.createElement('div');
     banner.style.cssText='background:rgba(46,233,255,0.1);border:1px solid rgba(46,233,255,0.3);border-radius:3px;padding:8px 12px;margin-bottom:0.8rem;font-size:0.75rem;color:#7FE0A8;';
