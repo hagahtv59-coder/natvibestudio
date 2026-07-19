@@ -1127,30 +1127,23 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
         </div>
 
         <div style="background:rgba(46,233,255,0.06);border:1px solid rgba(46,233,255,0.3);border-radius:4px;padding:1.1rem 1.25rem;margin-bottom:1.5rem;">
-          <div class="adm-label" style="margin-bottom:0.4rem;">&#128260; Witness Rotation (Auto-Fill for Witness Statement Form)</div>
-          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">Set the order of your 6 witnesses. Once you hit Start, the Witness Statement form will automatically fill in whoever's turn it currently is — name, phone, email, nationality — so they only have to type what they actually observed. (Timekeeper gets its own separate rotation next, once this one's working well.)</div>
-          <div style="display:flex;gap:0.6rem;margin-bottom:0.6rem;align-items:flex-end;flex-wrap:wrap;">
-            <div style="flex:1;min-width:180px;">
-              <div class="adm-label" style="font-size:0.78rem;margin-bottom:0.35rem;color:var(--muted);">Add Member to Rotation Order</div>
-              <select class="adm-select" id="rotationAddSel"><option value="">-- Choose a Team Member --</option></select>
-            </div>
-            <button class="pm-btn" style="background:rgba(255,255,255,0.08);width:auto;padding:11px 20px;" onclick="addToRotation()">&#43; Add</button>
+          <div class="adm-label" style="margin-bottom:0.4rem;">&#128100; How the Witness Form Auto-Fill Works Now</div>
+          <div style="font-size:0.78rem;color:var(--muted);">No setup needed here — whoever's filling in the Witness Statement just picks their own name from a dropdown on the form itself, and their saved phone/email/nationality (from "Assign Duty Time &amp; Contact" above) fills in instantly. They still type their own date and shift time, since that changes every time. Make sure everyone who'll be a witness has their contact info saved above first.</div>
+        </div>
+
+        <div style="background:rgba(155,89,255,0.06);border:1px solid rgba(155,89,255,0.3);border-radius:4px;padding:1.1rem 1.25rem;margin-bottom:1.5rem;">
+          <div class="adm-label" style="margin-bottom:0.4rem;">&#9989; Observation Checklist (for Witness Statement)</div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">Add quick yes/no questions witnesses can tick instead of typing everything from scratch — e.g. "Cameras were visible and recording," "Guests were speaking clearly." Each one gets a Yes/No plus an optional detail box, and their answers automatically get written up into a proper observation paragraph.</div>
+          <div style="display:flex;gap:0.6rem;margin-bottom:0.6rem;">
+            <input type="text" class="pm-inp" id="checklistNewQ" placeholder="e.g. Cameras were visible and recording throughout" style="flex:1;"/>
+            <button class="pm-btn" style="background:rgba(255,255,255,0.08);width:auto;padding:11px 20px;" onclick="addChecklistQuestion()">&#43; Add</button>
           </div>
-          <div id="rotationOrderList" style="margin-bottom:0.75rem;"></div>
-          <div style="display:flex;gap:0.6rem;align-items:flex-end;flex-wrap:wrap;margin-bottom:0.75rem;">
-            <div>
-              <div class="adm-label" style="font-size:0.78rem;margin-bottom:0.35rem;color:var(--muted);">Slot Length (hours)</div>
-              <input type="number" min="1" class="pm-inp" id="rotationSlotHours" style="width:90px;" value="4" onchange="saveRotationSlotHours()"/>
-            </div>
-          </div>
-          <button class="pm-btn gold" style="width:auto;padding:11px 24px;" onclick="startShiftRotation()">&#9654; Start Marathon Rotation Now</button>
-          <button class="pm-btn" style="background:rgba(255,90,90,0.15);border:1px solid rgba(255,90,90,0.4);color:#FF8A8A;width:auto;padding:11px 20px;margin-left:8px;" onclick="stopShiftRotation()">&#9632; Stop Rotation</button>
-          <div id="rotationStatusBox" style="margin-top:0.9rem;padding-top:0.9rem;border-top:1px solid rgba(255,255,255,0.1);font-size:0.85rem;"></div>
+          <div id="checklistQList"></div>
         </div>
 
         <div style="background:rgba(212,175,55,0.06);border:1px solid rgba(212,175,55,0.3);border-radius:4px;padding:1.1rem 1.25rem;margin-bottom:1.5rem;">
           <div class="adm-label" style="margin-bottom:0.4rem;">&#128204; Witness Statement Defaults</div>
-          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">Fill these in once — they stay the same for every witness all marathon long, so they auto-fill every time the form opens. "When were you present" fills in automatically from the rotation's actual shift time, so it's not listed here.</div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">Fill these in once — they stay the same for every witness all marathon long, so they auto-fill every time the form opens. Date and shift time are typed fresh each time since those change.</div>
           <div style="display:flex;gap:0.6rem;margin-bottom:0.6rem;">
             <input type="text" class="pm-inp" id="wdRecordTitle" placeholder="Record Title" style="flex:1;"/>
             <input type="text" class="pm-inp" id="wdAppRef" placeholder="Application Reference Number" style="flex:1;"/>
@@ -1350,7 +1343,7 @@ const GUESTS=[
 // the public page.
 const DB_API = "/api/db";
 
-let DB = {questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[], smsSettings:{template:''}, scheduledSms:[], teamContacts:{}, teamSchedules:{}, rotations:{witness:{members:[],slotHours:4,startAt:null}}, witnessDefaults:{}};
+let DB = {questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[], smsSettings:{template:''}, scheduledSms:[], teamContacts:{}, teamSchedules:{}, witnessDefaults:{}, witnessChecklist:[]};
 
 let _lastLoadTime=0;
 const LOAD_CACHE_MS=4000; // rapid repeated loadDB() calls (e.g. switching tabs, several saves in a row) reuse the same data instead of each firing a fresh request
@@ -1430,7 +1423,7 @@ function restoreBackup(event){
       event.target.value='';
       return;
     }
-    DB = Object.assign({questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[], smsSettings:{template:''}, scheduledSms:[], teamContacts:{}, teamSchedules:{}, rotations:{witness:{members:[],slotHours:4,startAt:null}}, witnessDefaults:{}}, parsed);
+    DB = Object.assign({questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[], smsSettings:{template:''}, scheduledSms:[], teamContacts:{}, teamSchedules:{}, witnessDefaults:{}, witnessChecklist:[]}, parsed);
     const saved=await saveDB();
     event.target.value='';
     if(saved){
@@ -2148,7 +2141,7 @@ function switchAdmTab(id){
   if(id==='adm-media'){renderAdminGallery();renderAdminVideos();}
   if(id==='adm-cfg'){renderAdminApplications();}
   if(id==='adm-site'){loadSiteContentFields();renderAdminMediaPartners();renderAdminSponsors();}
-  if(id==='adm-team'){renderAdminTeam();populateDutiesRoleSelect();populateTeamDutyMemberSelect();renderTeamDutyRoster();renderTeamContactsOnly();populateRotationAddSelect();renderRotationOrderList();document.getElementById('rotationSlotHours').value=(DB.rotations && DB.rotations.witness && DB.rotations.witness.slotHours)||4;renderRotationStatus();document.getElementById('teamTemplateText').value=(DB.smsSettings && DB.smsSettings.teamTemplate)||'';const wd=DB.witnessDefaults||{};document.getElementById('wdRecordTitle').value=wd.recordTitle||'';document.getElementById('wdAppRef').value=wd.appRef||'';document.getElementById('wdOrganisation').value=wd.organisation||'';document.getElementById('wdVenue').value=wd.venue||'';document.getElementById('wdCity').value=wd.city||'';document.getElementById('wdCountry').value=wd.country||'';document.getElementById('wdExpertise').value=wd.expertise||'';}
+  if(id==='adm-team'){renderAdminTeam();populateDutiesRoleSelect();populateTeamDutyMemberSelect();renderTeamDutyRoster();renderTeamContactsOnly();renderChecklistQList();document.getElementById('teamTemplateText').value=(DB.smsSettings && DB.smsSettings.teamTemplate)||'';const wd=DB.witnessDefaults||{};document.getElementById('wdRecordTitle').value=wd.recordTitle||'';document.getElementById('wdAppRef').value=wd.appRef||'';document.getElementById('wdOrganisation').value=wd.organisation||'';document.getElementById('wdVenue').value=wd.venue||'';document.getElementById('wdCity').value=wd.city||'';document.getElementById('wdCountry').value=wd.country||'';document.getElementById('wdExpertise').value=wd.expertise||'';}
   if(id==='adm-checkin'){renderAdminCheckins();}
 }
 function updateAdmStats(){
@@ -3687,108 +3680,33 @@ async function sendTeamBroadcast(){
   statusEl.textContent = `✓ Done. Sent: ${sent}${failed?(', Failed: '+failed):''} of ${ids.length}.`;
   btn.disabled=false; btn.textContent=orig;
 }
-/* ===== SHIFT ROTATION (per role — currently set up for Witness; Timekeeper gets its own next) ===== */
-function populateRotationAddSelect(){
-  const sel=document.getElementById('rotationAddSel');
+/* ===== WITNESS STATEMENT: PICK-YOUR-OWN-NAME AUTO-FILL + OBSERVATION CHECKLIST ===== */
+function populateWitnessNameSelect(){
+  const sel=document.getElementById('witness-whoAmI');
   if(!sel) return;
-  const members=(DB.teamMembers||[]).slice().sort((a,b)=>a.name.localeCompare(b.name));
-  sel.innerHTML='<option value="">-- Choose a Team Member --</option>'+members.map(m=>`<option value="${m.id}">${m.name}${m.role?(' — '+m.role):''}</option>`).join('');
-}
-function ensureRotation(role){
-  if(!DB.rotations) DB.rotations={};
-  if(!DB.rotations[role]) DB.rotations[role]={members:[],slotHours:4,startAt:null};
-  if(!DB.rotations[role].members) DB.rotations[role].members=[];
-  return DB.rotations[role];
-}
-async function addToRotation(){
-  const id=document.getElementById('rotationAddSel').value;
-  if(!id) return;
-  await loadDB();
-  const rot=ensureRotation('witness');
-  if(rot.members.includes(String(id))){ alert('This person is already in the Witness rotation.'); return; }
-  rot.members.push(id);
-  await saveDB();
-  renderRotationOrderList();
-}
-async function removeFromRotationAt(index){
-  await loadDB();
-  const rot=ensureRotation('witness');
-  rot.members.splice(index,1);
-  await saveDB();
-  renderRotationOrderList();
-}
-async function moveRotationItem(index, dir){
-  await loadDB();
-  const rot=ensureRotation('witness');
-  const arr=rot.members;
-  const newIndex=index+dir;
-  if(newIndex<0||newIndex>=arr.length) return;
-  [arr[index],arr[newIndex]]=[arr[newIndex],arr[index]];
-  await saveDB();
-  renderRotationOrderList();
-}
-function renderRotationOrderList(){
-  const box=document.getElementById('rotationOrderList');
-  if(!box) return;
-  const rot=(DB.rotations && DB.rotations.witness) || {members:[]};
-  const ids=rot.members||[];
+  const contacts=DB.teamContacts||{};
   const members=DB.teamMembers||[];
-  if(!ids.length){ box.innerHTML='<div style="color:var(--muted);font-size:0.8rem;padding:0.5rem 0;">No one added to the Witness rotation yet.</div>'; return; }
-  box.innerHTML=ids.map((id,i)=>{
+  const ids=Object.keys(contacts).filter(id=>contacts[id] && contacts[id].contact);
+  const options=ids.map(id=>{
     const m=members.find(x=>String(x.id)===String(id));
-    const name=m?m.name:'(deleted member)';
-    return `<div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.04);border-radius:3px;padding:6px 10px;margin-bottom:5px;">
-      <span style="font-weight:700;color:var(--gold);min-width:20px;">${i+1}.</span>
-      <span style="flex:1;font-size:0.85rem;">${qHtml(name)}</span>
-      <button class="adm-del" style="padding:4px 8px;" onclick="moveRotationItem(${i},-1)">&#8593;</button>
-      <button class="adm-del" style="padding:4px 8px;" onclick="moveRotationItem(${i},1)">&#8595;</button>
-      <button class="adm-del" onclick="removeFromRotationAt(${i})">&#128465;</button>
-    </div>`;
-  }).join('');
+    return m ? {id, name:m.name} : null;
+  }).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name));
+  sel.innerHTML='<option value="">-- Select Your Name --</option>'+options.map(o=>`<option value="${o.id}">${qHtml(o.name)}</option>`).join('');
 }
-async function saveRotationSlotHours(){
-  const hours=parseInt(document.getElementById('rotationSlotHours').value)||4;
-  await loadDB();
-  ensureRotation('witness').slotHours=hours;
-  await saveDB();
-  renderRotationStatus();
-}
-async function startShiftRotation(){
-  await loadDB();
-  const rot=ensureRotation('witness');
-  if(!rot.members.length){
-    alert('Add at least one person to the Witness rotation order first.');
-    return;
-  }
-  rot.startAt=new Date().toISOString();
-  await saveDB();
-  renderRotationStatus();
-  alert('✓ Witness rotation started! The Witness Statement form will now auto-fill whoever\'s turn it is.');
-}
-async function stopShiftRotation(){
-  if(!confirm('Stop the Witness rotation? The form will go back to blank until you start it again.'))return;
-  await loadDB();
-  const rot=ensureRotation('witness');
-  rot.startAt=null;
-  await saveDB();
-  renderRotationStatus();
-}
-// Returns the team member whose turn it currently is for a given rotation
-// role (e.g. 'witness'), or null if that rotation isn't running.
-function getCurrentRotationMember(role){
-  const rot=DB.rotations && DB.rotations[role];
-  if(!rot || !rot.startAt || !rot.members || !rot.members.length) return null;
-  const slotMs=(rot.slotHours||4)*3600000;
-  const elapsed=Date.now()-new Date(rot.startAt).getTime();
-  if(elapsed<0) return null;
-  const slotIndex=Math.floor(elapsed/slotMs)%rot.members.length;
-  const id=rot.members[slotIndex];
+function fillWitnessIdentity(id){
+  if(!id) return;
   const m=(DB.teamMembers||[]).find(x=>String(x.id)===String(id));
-  if(!m) return null;
   const contact=(DB.teamContacts||{})[id]||{};
-  const turnStartsAt=new Date(new Date(rot.startAt).getTime() + Math.floor(elapsed/slotMs)*slotMs);
-  const turnEndsAt=new Date(turnStartsAt.getTime() + slotMs);
-  return {id, name:m.name, role:m.role, contact:contact.contact||'', email:contact.email||'', nationality:contact.nationality||'', location:contact.location||'', turnStartsAt, turnEndsAt};
+  if(!m) return;
+  const nameParts=m.name.trim().split(/\s+/);
+  const firstName=nameParts[0]||'';
+  const lastName=nameParts.slice(1).join(' ')||'';
+  const setVal=(fid,val)=>{ const el=document.getElementById('witness-'+fid); if(el) el.value=val||''; };
+  setVal('firstName', firstName);
+  setVal('lastName', lastName);
+  setVal('email', contact.email);
+  setVal('phone', contact.contact);
+  setVal('nationality', contact.nationality);
 }
 async function saveWitnessDefaults(){
   await loadDB();
@@ -3806,12 +3724,10 @@ async function saveWitnessDefaults(){
   const ok=document.getElementById('wdSaved');
   ok.style.display='inline'; setTimeout(()=>ok.style.display='none',2500);
 }
-async function autoFillRotationFields(prefix, role){
+async function autoFillWitnessDefaults(){
   await loadDB();
-  const current=getCurrentRotationMember(role);
-  const container=document.getElementById('fh-'+prefix+'-fields');
-  const setVal=(id,val)=>{ if(!val) return; const el=document.getElementById(prefix+'-'+id); if(el && !el.value) el.value=val; };
-  // Event-wide defaults (same for everyone, all marathon long) — fill these regardless of whether the rotation is currently running
+  populateWitnessNameSelect();
+  const setVal=(fid,val)=>{ if(!val) return; const el=document.getElementById('witness-'+fid); if(el && !el.value) el.value=val; };
   const wd=DB.witnessDefaults||{};
   setVal('recordTitle', wd.recordTitle);
   setVal('appRef', wd.appRef);
@@ -3820,41 +3736,75 @@ async function autoFillRotationFields(prefix, role){
   setVal('city', wd.city);
   setVal('country', wd.country);
   setVal('expertise', wd.expertise);
-  if(!current){
-    return;
-  }
-  const nameParts=current.name.trim().split(/\s+/);
-  const firstName=nameParts[0]||'';
-  const lastName=nameParts.slice(1).join(' ')||'';
-  setVal('name', current.name);
-  setVal('firstName', firstName);
-  setVal('lastName', lastName);
-  setVal('email', current.email);
-  setVal('phone', current.contact);
-  setVal('nationality', current.nationality);
-  const dateStr=current.turnStartsAt.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
-  const startStr=current.turnStartsAt.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-  const endStr=current.turnEndsAt.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-  setVal('when', dateStr+', '+startStr+' - '+endStr);
-  if(container){
-    const banner=document.createElement('div');
-    banner.style.cssText='background:rgba(46,233,255,0.1);border:1px solid rgba(46,233,255,0.3);border-radius:3px;padding:8px 12px;margin-bottom:0.8rem;font-size:0.75rem;color:#7FE0A8;';
-    banner.innerHTML='&#128260; Auto-filled for <strong>'+qHtml(current.name)+'</strong> — your turn until '+current.turnEndsAt.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})+'. Not you? Just edit the fields below.';
-    container.insertBefore(banner, container.firstChild);
-  }
 }
-function renderRotationStatus(){
-  const box=document.getElementById('rotationStatusBox');
+
+/* Observation checklist: admin defines yes/no prompts once; witnesses tick
+   them on the form and their answers get written into a proper paragraph
+   automatically, instead of typing everything from scratch. */
+async function addChecklistQuestion(){
+  const input=document.getElementById('checklistNewQ');
+  const text=input.value.trim();
+  if(!text) return;
+  await loadDB();
+  if(!DB.witnessChecklist) DB.witnessChecklist=[];
+  DB.witnessChecklist.push({id:Date.now(), text});
+  await saveDB();
+  input.value='';
+  renderChecklistQList();
+}
+async function removeChecklistQuestion(id){
+  if(!confirm('Remove this checklist question?'))return;
+  await loadDB();
+  DB.witnessChecklist=(DB.witnessChecklist||[]).filter(q=>q.id!==id);
+  await saveDB();
+  renderChecklistQList();
+}
+function renderChecklistQList(){
+  const box=document.getElementById('checklistQList');
   if(!box) return;
-  const rot=DB.rotations && DB.rotations.witness;
-  const current=getCurrentRotationMember('witness');
-  if(!current){
-    box.innerHTML = (rot && rot.startAt===null && rot.members && rot.members.length)
-      ? '<span style="color:var(--muted);">Witness rotation is set up but not started yet.</span>'
-      : '<span style="color:var(--muted);">No Witness rotation running.</span>';
-    return;
-  }
-  box.innerHTML = `<span style="color:#7FE0A8;">&#9989; Currently on duty: <strong>${qHtml(current.name)}</strong>${current.role?(' — '+qHtml(current.role)):''}</span><br><span style="color:var(--muted);font-size:0.75rem;">Until ${current.turnEndsAt.toLocaleString()}</span>`;
+  const list=DB.witnessChecklist||[];
+  if(!list.length){ box.innerHTML='<div style="color:var(--muted);font-size:0.8rem;padding:0.5rem 0;">No checklist questions yet — add one above.</div>'; return; }
+  box.innerHTML=list.map((q,i)=>`<div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.04);border-radius:3px;padding:6px 10px;margin-bottom:5px;">
+    <span style="flex:1;font-size:0.85rem;">${i+1}. ${qHtml(q.text)}</span>
+    <button class="adm-del" onclick="removeChecklistQuestion(${q.id})">&#128465;</button>
+  </div>`).join('');
+}
+function renderWitnessChecklistForm(){
+  const box=document.getElementById('witnessChecklistContainer');
+  if(!box) return;
+  const list=DB.witnessChecklist||[];
+  if(!list.length){ box.innerHTML=''; return; }
+  box.innerHTML='<div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.6rem;">Quick checklist — tick what applies, add detail if you want, and it\'ll be written up for you automatically below.</div>'
+    + list.map(q=>`<div style="background:rgba(255,255,255,0.04);border-radius:3px;padding:0.7rem;margin-bottom:0.6rem;">
+        <div style="font-size:0.82rem;margin-bottom:0.5rem;">${qHtml(q.text)}</div>
+        <div style="display:flex;gap:16px;margin-bottom:0.5rem;">
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;cursor:pointer;"><input type="radio" name="cl-${q.id}" value="Yes"/> Yes</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;cursor:pointer;"><input type="radio" name="cl-${q.id}" value="No"/> No</label>
+        </div>
+        <input type="text" class="pm-inp" id="cl-detail-${q.id}" placeholder="Add details (optional)" style="width:100%;"/>
+      </div>`).join('');
+}
+// Turns the checklist answers into a written paragraph and merges it with
+// whatever the witness typed in "Anything else to add?" before the form submits.
+function composeWitnessObservation(){
+  const list=DB.witnessChecklist||[];
+  const lines=[];
+  list.forEach(q=>{
+    const checked=document.querySelector(`input[name="cl-${q.id}"]:checked`);
+    if(!checked) return;
+    const detail=(document.getElementById('cl-detail-'+q.id)||{}).value||'';
+    let line=q.text+': '+checked.value;
+    if(detail.trim()) line+=' — '+detail.trim();
+    lines.push(line);
+  });
+  const extra=(document.getElementById('witness-observed')||{}).value||'';
+  if(extra.trim()) lines.push(extra.trim());
+  return lines.join('\n');
+}
+function submitWitnessForm(){
+  const observedEl=document.getElementById('witness-observed');
+  if(observedEl) observedEl.value=composeWitnessObservation();
+  submitGenericForm('witness', WITNESS_FIELDS, 'Witness Statement', null, buildWitnessSummary);
 }
 function renderTeamDutyRoster(){
   const box=document.getElementById('admTeamDutyList');
@@ -4018,7 +3968,7 @@ const WITNESS_FIELDS=[
   {id:'phone', label:'Telephone', type:'text', placeholder:'e.g. 024 123 4567'},
   {id:'recordTitle', label:'Record Title', type:'text', placeholder:'e.g. Longest Interview Marathon'},
   {id:'appRef', label:'Application Reference Number', type:'text', placeholder:'Found in emails from Guinness World Records'},
-  {id:'observed', label:'What did you see / measure / evaluate as a witness? Please provide details of the record guidelines you witnessed being followed', type:'textarea'},
+  {id:'observed', label:'Anything else to add? (optional — the checklist below covers most of this automatically)', type:'textarea'},
   {id:'expertise', label:'My field of expertise is (reason for witnessing the record attempt)', type:'textarea'},
   {id:'finalMeasurement', label:'Final Measurement', type:'text'},
   {id:'venue', label:'Venue', type:'text'},
@@ -4125,7 +4075,7 @@ async function fhShowStage(id){
   FH_STAGE_IDS.forEach(s=>document.getElementById(s).style.display='none');
   document.getElementById(id).style.display='block';
   if(id==='fh-steward'){ renderGenericFormFields('steward', STEWARD_FIELDS); document.getElementById('fh-steward-err').style.display='none'; document.getElementById('fh-steward-success').style.display='none'; }
-  if(id==='fh-witness'){ renderGenericFormFields('witness', WITNESS_FIELDS); document.getElementById('fh-witness-err').style.display='none'; document.getElementById('fh-witness-success').style.display='none'; document.getElementById('witnessSummaryBox').style.display='none'; autoFillRotationFields('witness','witness'); }
+  if(id==='fh-witness'){ renderGenericFormFields('witness', WITNESS_FIELDS); document.getElementById('fh-witness-err').style.display='none'; document.getElementById('fh-witness-success').style.display='none'; document.getElementById('witnessSummaryBox').style.display='none'; autoFillWitnessDefaults(); renderWitnessChecklistForm(); }
   if(id==='fh-timekeeper'){ renderGenericFormFields('timekeeper', TIMEKEEPER_FIELDS); document.getElementById('fh-timekeeper-err').style.display='none'; document.getElementById('fh-timekeeper-success').style.display='none'; }
   if(id==='fh-cover'){ renderGenericFormFields('cover', COVER_FIELDS); document.getElementById('fh-cover-err').style.display='none'; document.getElementById('fh-cover-success').style.display='none'; }
   if(id==='fh-logbook'){ await loadDB(); lbSetType('activity'); renderLogbookList(); }
@@ -4624,8 +4574,15 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closePortal();});
     <div id="fh-witness" style="display:none;">
       <a onclick="fhBackToMenu()" style="color:var(--muted);font-size:0.78rem;cursor:pointer;display:inline-block;margin-bottom:0.8rem;">&#8592; Back to Forms Menu</a>
       <h3 style="color:var(--gold);">&#128065; Witness Statement</h3>
+      <div style="background:rgba(46,233,255,0.08);border:1px solid rgba(46,233,255,0.3);border-radius:4px;padding:0.8rem;margin-bottom:0.9rem;">
+        <label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:6px;">Who's filling this in?</label>
+        <select class="tr-select" id="witness-whoAmI" onchange="fillWitnessIdentity(this.value)" style="width:100%;">
+          <option value="">-- Select Your Name --</option>
+        </select>
+      </div>
       <div id="fh-witness-fields"></div>
-      <button class="pm-btn" style="background:#FFC857;border-color:#FFC857;color:#1A0308;margin-top:0.6rem;" onclick="submitGenericForm('witness', WITNESS_FIELDS, 'Witness Statement', null, buildWitnessSummary)">Submit &amp; Send PDF</button>
+      <div id="witnessChecklistContainer" style="margin-bottom:0.9rem;"></div>
+      <button class="pm-btn" style="background:#FFC857;border-color:#FFC857;color:#1A0308;margin-top:0.6rem;" onclick="submitWitnessForm()">Submit &amp; Send PDF</button>
       <div class="pm-err" id="fh-witness-err">Please fill in your name and signature at least.</div>
       <div class="bm-success" id="fh-witness-success">&#10003; Submitted! A PDF copy has been sent to the admin.</div>
       <div id="witnessSummaryBox" style="display:none;background:rgba(46,233,255,0.08);border:1px solid rgba(46,233,255,0.3);border-radius:4px;padding:1rem;margin-top:1rem;">
