@@ -890,6 +890,26 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
           <input type="number" min="1" class="pm-inp" id="schedDefaultDuration" style="width:90px;" onchange="updateDefaultDuration()"/>
           <span style="font-size:0.78rem;color:var(--muted);">minutes</span>
         </div>
+
+        <div style="background:rgba(155,89,255,0.06);border:1px solid rgba(155,89,255,0.3);border-radius:4px;padding:1.1rem 1.25rem;margin-bottom:1.5rem;">
+          <div class="adm-label" style="margin-bottom:0.4rem;">&#9203; Bulk Change Duration &amp; Re-Chain Schedule</div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">Change every guest currently on a certain length slot to a new length, all at once — e.g. every 40-minute slot becomes 30 minutes. The whole schedule automatically re-flows in order afterward, so there are no gaps or overlaps. The very first guest's start time stays fixed as the anchor; everyone after shifts to follow.</div>
+          <div style="display:flex;gap:0.6rem;align-items:flex-end;flex-wrap:wrap;margin-bottom:0.6rem;">
+            <div>
+              <div class="adm-label" style="font-size:0.78rem;margin-bottom:0.35rem;color:var(--muted);">Change slots currently...</div>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <input type="number" min="1" class="pm-inp" id="retimeFrom" style="width:80px;" placeholder="40"/>
+                <span style="font-size:0.78rem;color:var(--muted);">min &#8594;</span>
+                <input type="number" min="1" class="pm-inp" id="retimeTo" style="width:80px;" placeholder="30"/>
+                <span style="font-size:0.78rem;color:var(--muted);">min</span>
+              </div>
+            </div>
+            <button class="pm-btn" style="background:rgba(255,255,255,0.08);width:auto;padding:11px 20px;" onclick="addRetimeRule()">&#43; Add Rule</button>
+          </div>
+          <div id="retimeRulesList" style="margin-bottom:0.75rem;"></div>
+          <button class="pm-btn gold" style="width:auto;padding:11px 24px;" onclick="applyBulkRetime()">&#9654; Apply Rules &amp; Re-Chain Schedule Now</button>
+          <div id="retimeStatus" style="font-size:0.78rem;margin-top:8px;"></div>
+        </div>
         <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(212,175,55,0.2);padding:1.25rem;border-radius:4px;margin-bottom:1.5rem;">
           <div class="adm-label" style="margin-bottom:0.75rem;">Set Interview Schedule</div>
           <select class="adm-select" id="schedGuestSel"><option value="">-- Choose a Guest --</option></select>
@@ -2142,7 +2162,7 @@ function switchAdmTab(id){
   if(id==='adm-guests'){renderAdminGuests();populateRemoveGuestSelect();renderRemovedGuests();}
   if(id==='adm-contacts'){populateContactGuestSelect();renderGuestContactsTable();document.getElementById('smsTemplateText').value=(DB.smsSettings && DB.smsSettings.template)||'';populateRemindGuestSelect();renderScheduledReminders();}
   if(id==='adm-notes'){renderAdminNotes();}
-  if(id==='adm-schedule'){populateScheduleSelect();renderAdminSchedules();document.getElementById('eventLocationInput').value=(DB.scheduleSettings && DB.scheduleSettings.location)||'';document.getElementById('interviewTemplateText').value=(DB.smsSettings && DB.smsSettings.interviewTemplate)||'';}
+  if(id==='adm-schedule'){populateScheduleSelect();renderAdminSchedules();document.getElementById('eventLocationInput').value=(DB.scheduleSettings && DB.scheduleSettings.location)||'';document.getElementById('interviewTemplateText').value=(DB.smsSettings && DB.smsSettings.interviewTemplate)||'';renderRetimeRules();}
   if(id==='adm-alerts'){renderAdminAnnouncements();renderIssueReports();}
   if(id==='adm-media'){renderAdminGallery();renderAdminVideos();}
   if(id==='adm-cfg'){renderAdminApplications();}
@@ -2632,6 +2652,76 @@ async function updateDefaultDuration(){
 /* Figures out where the next guest's slot should start/end: right after whichever
    already-scheduled guest ends latest, using the default duration — unless nothing
    is scheduled yet, in which case the day starts at 6:00 AM. */
+/* ===== BULK CHANGE DURATION & RE-CHAIN SCHEDULE ===== */
+let retimeRules=[];
+function addRetimeRule(){
+  const from=parseInt(document.getElementById('retimeFrom').value);
+  const to=parseInt(document.getElementById('retimeTo').value);
+  if(!from||!to||from<1||to<1){ alert('Enter both a "from" and "to" number of minutes.'); return; }
+  retimeRules=retimeRules.filter(r=>r.from!==from); // replace any existing rule for that same "from" value
+  retimeRules.push({from,to});
+  document.getElementById('retimeFrom').value='';
+  document.getElementById('retimeTo').value='';
+  renderRetimeRules();
+}
+function removeRetimeRule(i){
+  retimeRules.splice(i,1);
+  renderRetimeRules();
+}
+function renderRetimeRules(){
+  const box=document.getElementById('retimeRulesList');
+  if(!box) return;
+  if(!retimeRules.length){ box.innerHTML='<div style="color:var(--muted);font-size:0.8rem;">No rules added yet — everyone keeps their current length until you add one.</div>'; return; }
+  box.innerHTML=retimeRules.map((r,i)=>`<div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.04);border-radius:3px;padding:6px 10px;margin-bottom:5px;">
+    <span style="flex:1;font-size:0.85rem;">${r.from} min &#8594; ${r.to} min</span>
+    <button class="adm-del" onclick="removeRetimeRule(${i})">&#128465;</button>
+  </div>`).join('');
+}
+// Duration of a schedule entry in minutes, correctly handling overnight (midnight-crossing) slots.
+function scheduleDurationMinutes(s){
+  const startDt=new Date(s.date+'T'+s.start+':00');
+  let endDt=new Date(s.date+'T'+s.end+':00');
+  if(s.crossesMidnight || endDt<=startDt) endDt=new Date(endDt.getTime()+86400000);
+  return Math.round((endDt-startDt)/60000);
+}
+async function applyBulkRetime(){
+  if(!retimeRules.length){ alert('Add at least one rule first (e.g. 40 min → 30 min).'); return; }
+  await loadDB();
+  const scheds=DB.schedules||{};
+  const names=Object.keys(scheds).filter(n=>scheds[n] && scheds[n].date && scheds[n].start && scheds[n].end);
+  if(!names.length){ alert('No guests are scheduled yet.'); return; }
+  names.sort((a,b)=>schedSortKey(a)-schedSortKey(b));
+  const ruleSummary=retimeRules.map(r=>r.from+'→'+r.to+'min').join(', ');
+  if(!confirm(`This will re-chain all ${names.length} scheduled guests (${ruleSummary}), keeping ${names[0]}'s start time fixed. This can't be undone automatically — consider downloading a backup first. Continue?`)) return;
+  const statusEl=document.getElementById('retimeStatus');
+  statusEl.style.color='var(--muted)'; statusEl.textContent='Applying...';
+  let pointerDate=scheds[names[0]].date;
+  let pointerTime=scheds[names[0]].start;
+  let changedCount=0;
+  names.forEach(name=>{
+    const s=scheds[name];
+    const origDuration=scheduleDurationMinutes(s);
+    const rule=retimeRules.find(r=>r.from===origDuration);
+    const newDuration=rule?rule.to:origDuration;
+    if(rule) changedCount++;
+    s.date=pointerDate;
+    s.start=pointerTime;
+    const startDt=new Date(pointerDate+'T'+pointerTime+':00');
+    const endDt=new Date(startDt.getTime()+newDuration*60000);
+    const crosses = localDateStr(endDt)!==localDateStr(startDt);
+    s.end=localTimeStr(endDt);
+    s.endDate=localDateStr(endDt);
+    s.crossesMidnight=crosses;
+    pointerDate=localDateStr(endDt);
+    pointerTime=localTimeStr(endDt);
+  });
+  await saveDB();
+  renderAdminSchedules();
+  refreshAllGuestSchedules();
+  populateScheduleSelect();
+  statusEl.style.color='#7FE0A8';
+  statusEl.textContent=`✓ Done. ${changedCount} guest(s) had their duration changed; the full schedule of ${names.length} was re-chained to match.`;
+}
 function computeNextScheduleSlot(){
   const duration=getDefaultDuration();
   const scheds=Object.values(DB.schedules||{}).filter(s=>s && s.date && s.end && /^\d{2}:\d{2}$/.test(s.end));
