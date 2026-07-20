@@ -1148,7 +1148,7 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
 
         <div style="background:rgba(212,175,55,0.06);border:1px solid rgba(212,175,55,0.3);border-radius:4px;padding:1.1rem 1.25rem;margin-bottom:1.5rem;">
           <div class="adm-label" style="margin-bottom:0.4rem;">&#128204; Witness Statement Defaults</div>
-          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">Fill these in once — they stay the same for every witness all marathon long, so they auto-fill every time the form opens. Date and shift time are typed fresh each time since those change.</div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">Fill these in once — they auto-fill every time the form opens. "When were you present" auto-fills too, pulled from whatever date/start/end you last saved for that person in "Assign Duty Time &amp; Contact" above — update it there whenever their shift changes. Only #3 (what they observed) stays blank for them to fill in each time.</div>
           <div style="display:flex;gap:0.6rem;margin-bottom:0.6rem;">
             <input type="text" class="pm-inp" id="wdRecordTitle" placeholder="Record Title" style="flex:1;"/>
             <input type="text" class="pm-inp" id="wdAppRef" placeholder="Application Reference Number" style="flex:1;"/>
@@ -1159,6 +1159,7 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
             <input type="text" class="pm-inp" id="wdCity" placeholder="City/Town" style="flex:1;"/>
             <input type="text" class="pm-inp" id="wdCountry" placeholder="Country" style="flex:1;"/>
           </div>
+          <input type="text" class="pm-inp" id="wdFinalMeasurement" placeholder="Final Measurement (e.g. 52 hours 30 minutes so far)" style="margin-bottom:0.6rem;"/>
           <textarea class="pm-inp" id="wdExpertise" rows="2" placeholder="My field of expertise is (reason for witnessing the record attempt)" style="width:100%;resize:vertical;margin-bottom:0.6rem;"></textarea>
           <button class="pm-btn" style="background:#3DB871;border-color:#3DB871;width:auto;padding:9px 20px;font-size:0.8rem;" onclick="saveWitnessDefaults()">&#128190; Save Defaults</button>
           <span id="wdSaved" style="display:none;color:#7FE0A8;font-size:0.75rem;margin-left:8px;">&#10003; Saved</span>
@@ -2146,7 +2147,7 @@ function switchAdmTab(id){
   if(id==='adm-media'){renderAdminGallery();renderAdminVideos();}
   if(id==='adm-cfg'){renderAdminApplications();}
   if(id==='adm-site'){loadSiteContentFields();renderAdminMediaPartners();renderAdminSponsors();}
-  if(id==='adm-team'){renderAdminTeam();populateDutiesRoleSelect();populateTeamDutyMemberSelect();renderTeamDutyRoster();renderTeamContactsOnly();renderChecklistQList();document.getElementById('teamTemplateText').value=(DB.smsSettings && DB.smsSettings.teamTemplate)||'';const wd=DB.witnessDefaults||{};document.getElementById('wdRecordTitle').value=wd.recordTitle||'';document.getElementById('wdAppRef').value=wd.appRef||'';document.getElementById('wdOrganisation').value=wd.organisation||'';document.getElementById('wdVenue').value=wd.venue||'';document.getElementById('wdCity').value=wd.city||'';document.getElementById('wdCountry').value=wd.country||'';document.getElementById('wdExpertise').value=wd.expertise||'';}
+  if(id==='adm-team'){renderAdminTeam();populateDutiesRoleSelect();populateTeamDutyMemberSelect();renderTeamDutyRoster();renderTeamContactsOnly();renderChecklistQList();document.getElementById('teamTemplateText').value=(DB.smsSettings && DB.smsSettings.teamTemplate)||'';const wd=DB.witnessDefaults||{};document.getElementById('wdRecordTitle').value=wd.recordTitle||'';document.getElementById('wdAppRef').value=wd.appRef||'';document.getElementById('wdOrganisation').value=wd.organisation||'';document.getElementById('wdVenue').value=wd.venue||'';document.getElementById('wdCity').value=wd.city||'';document.getElementById('wdCountry').value=wd.country||'';document.getElementById('wdFinalMeasurement').value=wd.finalMeasurement||'';document.getElementById('wdExpertise').value=wd.expertise||'';}
   if(id==='adm-checkin'){renderAdminCheckins();}
 }
 function updateAdmStats(){
@@ -3702,6 +3703,7 @@ function fillWitnessIdentity(id){
   if(!id) return;
   const m=(DB.teamMembers||[]).find(x=>String(x.id)===String(id));
   const contact=(DB.teamContacts||{})[id]||{};
+  const sched=(DB.teamSchedules||{})[id];
   if(!m) return;
   const nameParts=m.name.trim().split(/\s+/);
   const firstName=nameParts[0]||'';
@@ -3712,6 +3714,9 @@ function fillWitnessIdentity(id){
   setVal('email', contact.email);
   setVal('phone', contact.contact);
   setVal('nationality', contact.nationality);
+  if(sched && sched.date && sched.start && sched.end){
+    setVal('when', fmtSchedDate(sched.date)+', '+fmtSchedTime(sched.start)+' - '+fmtSchedTime(sched.end));
+  }
 }
 async function saveWitnessDefaults(){
   await loadDB();
@@ -3723,6 +3728,7 @@ async function saveWitnessDefaults(){
     venue: document.getElementById('wdVenue').value.trim(),
     city: document.getElementById('wdCity').value.trim(),
     country: document.getElementById('wdCountry').value.trim(),
+    finalMeasurement: document.getElementById('wdFinalMeasurement').value.trim(),
     expertise: document.getElementById('wdExpertise').value.trim()
   };
   await saveDB();
@@ -3740,6 +3746,7 @@ async function autoFillWitnessDefaults(){
   setVal('venue', wd.venue);
   setVal('city', wd.city);
   setVal('country', wd.country);
+  setVal('finalMeasurement', wd.finalMeasurement);
   setVal('expertise', wd.expertise);
 }
 
