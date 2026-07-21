@@ -845,6 +845,15 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
           <div id="smsSendStatus" style="font-size:0.78rem;margin-top:6px;"></div>
           <div class="pm-err" id="contactSaveErr" style="display:none;">Please choose a guest and enter a phone number.</div>
         </div>
+
+        <div style="background:rgba(255,200,87,0.06);border:1px solid rgba(255,200,87,0.3);border-radius:4px;padding:1.1rem 1.25rem;margin-bottom:1.5rem;">
+          <div class="adm-label" style="margin-bottom:0.4rem;">&#128172; Send One Message To All Guests</div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">A one-off broadcast, separate from the schedule/reminder system — goes to every guest with a saved phone number, all at once. Use <code>{name}</code> if you want their name inserted.</div>
+          <textarea class="pm-inp" id="guestBroadcastText" rows="3" placeholder="e.g. Hi {name}, quick update from NAT-VIBE STUDIO — please bring a valid ID when you arrive." style="width:100%;resize:vertical;margin-bottom:0.6rem;"></textarea>
+          <button class="pm-btn gold" style="width:auto;padding:11px 24px;" onclick="sendGuestBroadcast()">&#128172; Send to All Guest Contacts</button>
+          <div id="guestBroadcastStatus" style="font-size:0.78rem;margin-top:8px;"></div>
+        </div>
+
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;flex-wrap:wrap;gap:0.6rem;">
           <div class="adm-label" style="margin-bottom:0;">All Guest Contacts (Spreadsheet)</div>
           <div style="display:flex;gap:0.5rem;">
@@ -3143,6 +3152,29 @@ async function resendGuestSms(name, phone){
   if(!tpl.trim()){ alert('Set your Auto-SMS Message at the top of this tab first.'); return; }
   const result=await sendSmsToPhone(phone, fillSmsTemplate(name));
   alert(result.ok ? ('✓ SMS sent to '+phone) : ('⚠ SMS failed: '+(result.error||'unknown error')));
+}
+async function sendGuestBroadcast(){
+  const msg=document.getElementById('guestBroadcastText').value.trim();
+  const statusEl=document.getElementById('guestBroadcastStatus');
+  if(!msg){ statusEl.style.color='#FF8A8A'; statusEl.textContent='⚠ Write a message first.'; return; }
+  await loadDB();
+  const contacts=DB.guestContacts||{};
+  const names=Object.keys(contacts).filter(n=>contacts[n] && contacts[n].contact);
+  if(!names.length){ statusEl.style.color='var(--muted)'; statusEl.textContent='No guest contacts saved yet.'; return; }
+  const btn=event.target; btn.disabled=true; const orig=btn.textContent;
+  let sent=0, failed=0;
+  for(let i=0;i<names.length;i++){
+    const name=names[i];
+    btn.textContent=`Sending... (${i+1}/${names.length})`;
+    statusEl.style.color='var(--muted)';
+    statusEl.textContent=`Sending to ${name} (${i+1} of ${names.length})...`;
+    const result=await sendSmsToPhone(contacts[name].contact, msg.replace(/\{name\}/g, name));
+    if(result.ok) sent++; else failed++;
+    await new Promise(r=>setTimeout(r,300));
+  }
+  statusEl.style.color = failed ? '#FFC857' : '#7FE0A8';
+  statusEl.textContent = `✓ Done. Sent: ${sent}${failed?(', Failed: '+failed):''} of ${names.length}.`;
+  btn.disabled=false; btn.textContent=orig;
 }
 
 /* ===== SCHEDULED SMS REMINDERS (SEND AUTOMATICALLY EVEN WHILE ADMIN IS OFFLINE) ===== */
