@@ -667,6 +667,29 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
     </div>
   </div>
 
+  <!-- EDIT ONE GUEST'S TIME -->
+  <div class="site-popup-overlay" id="editTimeOverlay" onclick="if(event.target===this)closeEditGuestTime()">
+    <div class="book-modal-box" style="max-width:440px;">
+      <h3 style="color:#7FE0A8;">&#9203; Edit Time</h3>
+      <div class="bm-guest">Change the date/time for <strong id="editTimeNameLabel"></strong>. Anyone scheduled <strong>before</strong> them stays exactly as-is. Anyone scheduled <strong>after</strong> them will automatically shift to keep following seamlessly — their own lengths stay the same, only their timing moves.</div>
+      <div class="adm-label" style="font-size:0.78rem;margin-bottom:0.35rem;color:var(--muted);">Date</div>
+      <input type="date" class="pm-inp" id="editTimeDate" style="margin-bottom:0.6rem;"/>
+      <div style="display:flex;gap:0.6rem;margin-bottom:0.75rem;">
+        <div style="flex:1;">
+          <div class="adm-label" style="font-size:0.78rem;margin-bottom:0.35rem;color:var(--muted);">Start Time</div>
+          <input type="time" class="pm-inp" id="editTimeStart"/>
+        </div>
+        <div style="flex:1;">
+          <div class="adm-label" style="font-size:0.78rem;margin-bottom:0.35rem;color:var(--muted);">End Time</div>
+          <input type="time" class="pm-inp" id="editTimeEnd"/>
+        </div>
+      </div>
+      <button class="pm-btn" style="background:#3DB871;border-color:#3DB871;" onclick="confirmEditGuestTime()">Save &amp; Shift Everyone After</button>
+      <div class="pm-err" id="editTimeErr">Please set a valid date, start, and end time.</div>
+      <div class="bm-success" id="editTimeSuccess">&#10003; Updated! Everyone after them has been shifted to match.</div>
+    </div>
+  </div>
+
   <!-- SWAP GUEST -->
   <div class="site-popup-overlay" id="swapGuestOverlay" onclick="if(event.target===this)closeSwapGuest()">
     <div class="book-modal-box" style="max-width:440px;">
@@ -2874,10 +2897,69 @@ function renderAdminSchedules(){
       ? '<span style="color:#7FE0A8;font-size:0.65rem;">&#9989; Reminder sent</span>'
       : (hasContact ? '<span style="color:#FFC857;font-size:0.65rem;">&#9203; Reminder not sent yet</span>' : '<span style="color:var(--muted);font-size:0.65rem;">No contact saved</span>');
     const sendBtn = hasContact ? `<button class="adm-del" style="background:rgba(61,184,113,0.2);color:#7FE0A8;" onclick="sendOneInterviewReminder('${n.replace(/'/g,"\\'")}')">&#128172; ${s.reminderSent?'Resend':'Send'}</button>` : '';
-    return `<div class="adm-q-item"><div><div class="adm-q-txt" style="font-weight:700;">${i+1}. ${n}</div><div class="adm-q-gst">&#128197; ${timeStr}</div><div style="margin-top:2px;">${reminderBadge}</div></div><div style="display:flex;gap:6px;flex-wrap:wrap;">${sendBtn}<button class="adm-del" style="background:rgba(155,89,255,0.2);color:#C9A8FF;" onclick="openSwapGuest('${n.replace(/'/g,"\\'")}')">&#128260; Swap</button><button class="adm-del" onclick="removeSchedule('${n.replace(/'/g,"\\'")}')">&#128465; Remove</button></div></div>`;
+    return `<div class="adm-q-item"><div><div class="adm-q-txt" style="font-weight:700;">${i+1}. ${n}</div><div class="adm-q-gst">&#128197; ${timeStr}</div><div style="margin-top:2px;">${reminderBadge}</div></div><div style="display:flex;gap:6px;flex-wrap:wrap;">${sendBtn}<button class="adm-del" style="background:rgba(46,233,255,0.2);color:#7FE0A8;" onclick="openEditGuestTime('${n.replace(/'/g,"\\'")}')">&#9203; Edit Time</button><button class="adm-del" style="background:rgba(155,89,255,0.2);color:#C9A8FF;" onclick="openSwapGuest('${n.replace(/'/g,"\\'")}')">&#128260; Swap</button><button class="adm-del" onclick="removeSchedule('${n.replace(/'/g,"\\'")}')">&#128465; Remove</button></div></div>`;
   }).join('');
 }
 let swapOldName=null;
+let editTimeName=null;
+function openEditGuestTime(name){
+  editTimeName=name;
+  const s=(DB.schedules||{})[name];
+  if(!s) return;
+  document.getElementById('editTimeNameLabel').textContent=name;
+  document.getElementById('editTimeDate').value=s.date||'';
+  document.getElementById('editTimeStart').value=s.start||'';
+  document.getElementById('editTimeEnd').value=s.end||'';
+  document.getElementById('editTimeErr').style.display='none';
+  document.getElementById('editTimeSuccess').style.display='none';
+  document.getElementById('editTimeOverlay').classList.add('open');
+}
+function closeEditGuestTime(){
+  document.getElementById('editTimeOverlay').classList.remove('open');
+  editTimeName=null;
+}
+async function confirmEditGuestTime(){
+  const date=document.getElementById('editTimeDate').value;
+  const start=document.getElementById('editTimeStart').value;
+  const end=document.getElementById('editTimeEnd').value;
+  const errEl=document.getElementById('editTimeErr'), okEl=document.getElementById('editTimeSuccess');
+  errEl.style.display='none'; okEl.style.display='none';
+  if(!editTimeName || !date || !start || !end || start===end){ errEl.style.display='block'; return; }
+  const btn=event.target; btn.disabled=true; const orig=btn.textContent; btn.textContent='Saving...';
+  await loadDB();
+  const scheds=DB.schedules||{};
+  // Figure out everyone's chronological order BEFORE this edit, so we know who comes "after" the edited guest
+  const names=Object.keys(scheds).filter(n=>scheds[n] && scheds[n].date && scheds[n].start && scheds[n].end);
+  names.sort((a,b)=>schedSortKey(a)-schedSortKey(b));
+  const editIndex=names.indexOf(editTimeName);
+  const after=editIndex>=0 ? names.slice(editIndex+1) : [];
+  // Apply the new time to the edited guest
+  const s=scheds[editTimeName];
+  const crossesMidnight = end<start;
+  let endDate=date;
+  if(crossesMidnight){ const d=new Date(date+'T00:00:00'); d.setDate(d.getDate()+1); endDate=localDateStr(d); }
+  s.date=date; s.start=start; s.end=end; s.endDate=endDate; s.crossesMidnight=crossesMidnight;
+  // Shift everyone who came after them, keeping each of their own original durations
+  let pointerDate=endDate, pointerTime=end;
+  after.forEach(n=>{
+    const os=scheds[n];
+    const duration=scheduleDurationMinutes(os);
+    os.date=pointerDate; os.start=pointerTime;
+    const startDt=new Date(pointerDate+'T'+pointerTime+':00');
+    const endDt=new Date(startDt.getTime()+duration*60000);
+    os.end=localTimeStr(endDt);
+    os.endDate=localDateStr(endDt);
+    os.crossesMidnight = localDateStr(endDt)!==localDateStr(startDt);
+    pointerDate=localDateStr(endDt); pointerTime=localTimeStr(endDt);
+  });
+  await saveDB();
+  okEl.style.display='block';
+  renderAdminSchedules();
+  refreshAllGuestSchedules();
+  populateScheduleSelect();
+  setTimeout(()=>{ closeEditGuestTime(); }, 1400);
+  btn.disabled=false; btn.textContent=orig;
+}
 let qtDirty=false;
 function openSwapGuest(oldName){
   swapOldName=oldName;
