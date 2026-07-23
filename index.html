@@ -276,6 +276,44 @@ footer{background:#0D0105;padding:3.5rem 3rem 1.5rem;border-top:2px solid var(--
 </head>
 <body>
 
+<!-- INTRO VIDEO GATE — blocks the whole site until the video finishes. Shows on every visit. -->
+<div id="introVideoGate" style="position:fixed;inset:0;z-index:99999;background:#040B18;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:1.2rem;">
+  <div style="width:100%;max-width:720px;">
+    <video id="introVideoEl" src="/intro.mp4" playsinline controls controlsList="nodownload noplaybackrate" style="width:100%;max-height:70vh;border-radius:6px;background:#000;display:block;" onerror="document.getElementById('introVideoErr').style.display='block';document.getElementById('introOkBtn').disabled=false;document.getElementById('introOkBtn').style.opacity=1;"></video>
+    <div id="introVideoErr" style="display:none;color:#FF8A8A;font-size:0.8rem;margin-top:0.6rem;text-align:center;">Couldn't load the intro video, but you can still continue.</div>
+    <div style="text-align:center;margin-top:1.1rem;">
+      <button id="introOkBtn" disabled style="opacity:0.4;pointer-events:none;background:var(--gold, #FFC857);color:#1A0308;border:none;border-radius:4px;padding:13px 40px;font-weight:800;font-size:0.95rem;letter-spacing:0.5px;cursor:pointer;transition:opacity 0.2s;" onclick="closeIntroVideoGate()">OK, Continue &#8594;</button>
+      <div id="introOkHint" style="color:#9DB8DC;font-size:0.75rem;margin-top:0.6rem;">Please watch the full video to continue.</div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  var v=document.getElementById('introVideoEl');
+  var btn=document.getElementById('introOkBtn');
+  var hint=document.getElementById('introOkHint');
+  document.body.style.overflow='hidden';
+  function enableOk(){
+    btn.disabled=false;
+    btn.style.opacity=1;
+    btn.style.pointerEvents='auto';
+    hint.textContent="You're all set!";
+  }
+  v.addEventListener('ended', enableOk);
+  // Prevent skipping ahead of what's actually been watched
+  var maxWatched=0;
+  v.addEventListener('timeupdate', function(){ if(v.currentTime>maxWatched) maxWatched=v.currentTime; });
+  v.addEventListener('seeking', function(){ if(v.currentTime>maxWatched+0.5) v.currentTime=maxWatched; });
+})();
+function closeIntroVideoGate(){
+  var gate=document.getElementById('introVideoGate');
+  var v=document.getElementById('introVideoEl');
+  if(v){ v.pause(); }
+  gate.style.display='none';
+  document.body.style.overflow='';
+}
+</script>
+
 <nav>
   <a href="#" class="nl">NAT<span>-</span>VIBE STUDIO</a>
   <ul class="nm">
