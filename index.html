@@ -315,6 +315,16 @@ function closeIntroVideoGate(){
   if(v){ v.pause(); }
   gate.style.display='none';
   document.body.style.overflow='';
+  // If the link they clicked included ?portal=guest (or team/checkin/forms),
+  // automatically open that login box right after the video, so a bulk SMS
+  // link can take a guest straight to typing their password.
+  try{
+    var params=new URLSearchParams(window.location.search);
+    var wantedPortal=params.get('portal');
+    if(wantedPortal && typeof openPortal==='function'){
+      openPortal(wantedPortal);
+    }
+  }catch(e){}
 }
 </script>
 
