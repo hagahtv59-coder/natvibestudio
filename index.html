@@ -3214,18 +3214,23 @@ async function sendGuestBroadcast(){
   const names=Object.keys(contacts).filter(n=>contacts[n] && contacts[n].contact);
   if(!names.length){ statusEl.style.color='var(--muted)'; statusEl.textContent='No guest contacts saved yet.'; return; }
   const btn=event.target; btn.disabled=true; const orig=btn.textContent;
-  let sent=0, failed=0;
+  let sent=0;
+  const failedList=[];
   for(let i=0;i<names.length;i++){
     const name=names[i];
     btn.textContent=`Sending... (${i+1}/${names.length})`;
     statusEl.style.color='var(--muted)';
     statusEl.textContent=`Sending to ${name} (${i+1} of ${names.length})...`;
     const result=await sendSmsToPhone(contacts[name].contact, msg.replace(/\{name\}/g, name));
-    if(result.ok) sent++; else failed++;
+    if(result.ok) sent++; else failedList.push({name, phone:contacts[name].contact, error:result.error||'unknown error'});
     await new Promise(r=>setTimeout(r,300));
   }
-  statusEl.style.color = failed ? '#FFC857' : '#7FE0A8';
-  statusEl.textContent = `✓ Done. Sent: ${sent}${failed?(', Failed: '+failed):''} of ${names.length}.`;
+  statusEl.style.color = failedList.length ? '#FFC857' : '#7FE0A8';
+  let html = `✓ Done. Sent: ${sent}${failedList.length?(', Failed: '+failedList.length):''} of ${names.length}.`;
+  if(failedList.length){
+    html += '<div style="margin-top:6px;">Failed for: '+failedList.map(f=>`<strong>${qHtml(f.name)}</strong> (${qHtml(f.phone)}) — ${qHtml(f.error)}`).join('; ')+'. Use "Resend SMS" next to their name in the table below to try again.</div>';
+  }
+  statusEl.innerHTML = html;
   btn.disabled=false; btn.textContent=orig;
 }
 
@@ -3926,7 +3931,8 @@ async function sendTeamBroadcast(){
   const ids=Object.keys(contacts).filter(id=>contacts[id] && contacts[id].contact);
   if(!ids.length){ statusEl.style.color='var(--muted)'; statusEl.textContent='No team contacts saved yet.'; return; }
   const btn=event.target; btn.disabled=true; const orig=btn.textContent;
-  let sent=0, failed=0;
+  let sent=0;
+  const failedList=[];
   for(let i=0;i<ids.length;i++){
     const id=ids[i];
     const m=members.find(x=>String(x.id)===String(id));
@@ -3935,11 +3941,15 @@ async function sendTeamBroadcast(){
     statusEl.style.color='var(--muted)';
     statusEl.textContent=`Sending to ${name} (${i+1} of ${ids.length})...`;
     const result=await sendSmsToPhone(contacts[id].contact, msg.replace(/\{name\}/g, name));
-    if(result.ok) sent++; else failed++;
+    if(result.ok) sent++; else failedList.push({name, phone:contacts[id].contact, error:result.error||'unknown error'});
     await new Promise(r=>setTimeout(r,300));
   }
-  statusEl.style.color = failed ? '#FFC857' : '#7FE0A8';
-  statusEl.textContent = `✓ Done. Sent: ${sent}${failed?(', Failed: '+failed):''} of ${ids.length}.`;
+  statusEl.style.color = failedList.length ? '#FFC857' : '#7FE0A8';
+  let html = `✓ Done. Sent: ${sent}${failedList.length?(', Failed: '+failedList.length):''} of ${ids.length}.`;
+  if(failedList.length){
+    html += '<div style="margin-top:6px;">Failed for: '+failedList.map(f=>`<strong>${qHtml(f.name)}</strong> (${qHtml(f.phone)}) — ${qHtml(f.error)}`).join('; ')+'.</div>';
+  }
+  statusEl.innerHTML = html;
   btn.disabled=false; btn.textContent=orig;
 }
 /* ===== WITNESS STATEMENT: PICK-YOUR-OWN-NAME AUTO-FILL + OBSERVATION CHECKLIST ===== */
