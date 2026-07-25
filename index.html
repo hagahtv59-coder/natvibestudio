@@ -1236,6 +1236,22 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
           <span id="tkSaved" style="display:none;color:#7FE0A8;font-size:0.75rem;margin-left:8px;">&#10003; Saved</span>
         </div>
 
+        <div style="background:rgba(212,175,55,0.06);border:1px solid rgba(212,175,55,0.3);border-radius:4px;padding:1.1rem 1.25rem;margin-bottom:1.5rem;">
+          <div class="adm-label" style="margin-bottom:0.4rem;">&#128204; Steward Statement Defaults</div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">Fill these in once — they auto-fill every time the form opens. "When were you present" auto-fills too, from that person's saved duty date/start/end. Their role description and participant counts stay blank for them to fill in each time.</div>
+          <div style="display:flex;gap:0.6rem;margin-bottom:0.6rem;">
+            <input type="text" class="pm-inp" id="stRecordTitle" placeholder="Record Title" style="flex:1;"/>
+            <input type="text" class="pm-inp" id="stAppRef" placeholder="Application Reference Number" style="flex:1;"/>
+          </div>
+          <div style="display:flex;gap:0.6rem;margin-bottom:0.6rem;">
+            <input type="text" class="pm-inp" id="stCity" placeholder="City" style="flex:1;"/>
+            <input type="text" class="pm-inp" id="stCountry" placeholder="Country" style="flex:1;"/>
+            <input type="text" class="pm-inp" id="stRegion" placeholder="State/Province/Region" style="flex:1;"/>
+          </div>
+          <button class="pm-btn" style="background:#3DB871;border-color:#3DB871;width:auto;padding:9px 20px;font-size:0.8rem;" onclick="saveStewardDefaults()">&#128190; Save Defaults</button>
+          <span id="stSaved" style="display:none;color:#7FE0A8;font-size:0.75rem;margin-left:8px;">&#10003; Saved</span>
+        </div>
+
         <div style="background:rgba(255,200,87,0.06);border:1px solid rgba(255,200,87,0.3);border-radius:4px;padding:1.1rem 1.25rem;margin-bottom:1.5rem;">
           <div class="adm-label" style="margin-bottom:0.4rem;">&#128172; Send One Message To Everyone</div>
           <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">A one-off broadcast — not tied to duty times. Goes to every team member with a saved phone number, whether or not they have a duty assigned. You can use <code>{name}</code>.</div>
@@ -1420,7 +1436,7 @@ const GUESTS=[
 // the public page.
 const DB_API = "/api/db";
 
-let DB = {questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[], smsSettings:{template:''}, scheduledSms:[], teamContacts:{}, teamSchedules:{}, witnessDefaults:{}, witnessChecklist:[], timekeeperDefaults:{}};
+let DB = {questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[], smsSettings:{template:''}, scheduledSms:[], teamContacts:{}, teamSchedules:{}, witnessDefaults:{}, witnessChecklist:[], timekeeperDefaults:{}, stewardDefaults:{}, formSubmissionLog:[]};
 
 let _lastLoadTime=0;
 const LOAD_CACHE_MS=4000; // rapid repeated loadDB() calls (e.g. switching tabs, several saves in a row) reuse the same data instead of each firing a fresh request
@@ -1500,7 +1516,7 @@ function restoreBackup(event){
       event.target.value='';
       return;
     }
-    DB = Object.assign({questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[], smsSettings:{template:''}, scheduledSms:[], teamContacts:{}, teamSchedules:{}, witnessDefaults:{}, witnessChecklist:[], timekeeperDefaults:{}}, parsed);
+    DB = Object.assign({questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[], smsSettings:{template:''}, scheduledSms:[], teamContacts:{}, teamSchedules:{}, witnessDefaults:{}, witnessChecklist:[], timekeeperDefaults:{}, stewardDefaults:{}, formSubmissionLog:[]}, parsed);
     const saved=await saveDB();
     event.target.value='';
     if(saved){
@@ -1623,7 +1639,8 @@ function renderTeamRoster(){
         : '';
       const changeLink = `<div style="margin-top:0.6rem;"><a onclick="toggleChangeRole(${m.id})" style="color:var(--muted);font-size:0.68rem;text-decoration:underline;cursor:pointer;">Picked the wrong role? Change it</a></div>`;
       const shiftBlock = m.status==='approved' ? shiftHtml(m) : '';
-      body = statusLine + dutiesBlock + shiftBlock + changeLink;
+      const nudgeBlock = m.status==='approved' ? missingFormsNudge(m.role) : '';
+      body = statusLine + dutiesBlock + shiftBlock + nudgeBlock + changeLink;
     }
     return `<div class="tr-card">
       <img class="tr-photo" src="${m.photo}"/>
@@ -1671,6 +1688,21 @@ function fmtElapsed(ms){
   const totalMin=Math.floor(ms/60000);
   const h=Math.floor(totalMin/60), m=totalMin%60;
   return h>0 ? (h+'h '+m+'m') : (m+'m');
+}
+// Checks whether someone's role-relevant form has been submitted today, and
+// shows a gentle reminder if not — so nobody forgets during a long shift.
+function missingFormsNudge(role){
+  if(!role) return '';
+  const r=role.toLowerCase();
+  let formType=null;
+  if(r.includes('witness')) formType='Witness Statement';
+  else if(r.includes('timekeep')) formType='Time Keeper Statement';
+  else if(r.includes('steward')) formType='Steward Statement';
+  if(!formType) return '';
+  const today=localDateStr(new Date());
+  const submittedToday=(DB.formSubmissionLog||[]).some(s=>s.type===formType && s.dateStr===today);
+  if(submittedToday) return '';
+  return `<div style="margin-top:0.6rem;background:rgba(255,138,61,0.12);border:1px solid rgba(255,138,61,0.35);border-radius:3px;padding:0.5rem 0.7rem;font-size:0.72rem;color:#FFB37D;">&#9888; You haven't submitted your ${formType} yet today — find it under Event Forms.</div>`;
 }
 function shiftHtml(m){
   if(!m.shiftStart){
@@ -1924,18 +1956,58 @@ async function addTeamRosterMember(){
 async function sendTG(msg){
   try{await fetch('https://api.telegram.org/bot'+BOT_TOKEN+'/sendMessage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:CHAT_ID,text:msg})});}catch(e){}
 }
-async function sendTGDocument(blob, filename, caption){
+async function sendTGDocument(blob, filename, caption, skipLocalSave){
   const fd = new FormData();
   fd.append('chat_id', CHAT_ID);
   fd.append('document', blob, filename);
   if(caption) fd.append('caption', caption);
-  try{
-    await fetch('https://api.telegram.org/bot'+BOT_TOKEN+'/sendDocument', {method:'POST', body:fd});
-    return true;
-  }catch(e){
-    return false;
+  const maxAttempts=3;
+  for(let attempt=1; attempt<=maxAttempts; attempt++){
+    try{
+      const res=await fetch('https://api.telegram.org/bot'+BOT_TOKEN+'/sendDocument', {method:'POST', body:fd});
+      if(res.ok) return true;
+    }catch(e){ /* network hiccup — fall through to retry */ }
+    if(attempt<maxAttempts) await new Promise(r=>setTimeout(r,1500));
   }
+  // All attempts failed (likely a bad connection) — save it on this device
+  // instead of losing what was filled in, and quietly retry later.
+  if(!skipLocalSave){
+    try{ await savePendingSubmission(blob, filename, caption); }catch(e){}
+  }
+  return false;
 }
+function savePendingSubmission(blob, filename, caption){
+  return new Promise((resolve)=>{
+    const reader=new FileReader();
+    reader.onloadend=function(){
+      try{
+        const list=JSON.parse(localStorage.getItem('natvibe_pending_submissions')||'[]');
+        list.push({filename, caption, base64:reader.result, savedAt:new Date().toISOString()});
+        localStorage.setItem('natvibe_pending_submissions', JSON.stringify(list));
+      }catch(e){}
+      resolve();
+    };
+    reader.readAsDataURL(blob);
+  });
+}
+async function retryPendingSubmissions(){
+  let list;
+  try{ list=JSON.parse(localStorage.getItem('natvibe_pending_submissions')||'[]'); }catch(e){ return; }
+  if(!list.length) return;
+  const stillPending=[];
+  for(const item of list){
+    try{
+      const blob=await (await fetch(item.base64)).blob();
+      const ok=await sendTGDocument(blob, item.filename, item.caption, true);
+      if(!ok) stillPending.push(item);
+    }catch(e){ stillPending.push(item); }
+  }
+  localStorage.setItem('natvibe_pending_submissions', JSON.stringify(stillPending));
+}
+window.addEventListener('DOMContentLoaded', function(){
+  retryPendingSubmissions();
+  setInterval(retryPendingSubmissions, 30000);
+});
 
 function searchGuests(){
   const q=document.getElementById('guestSearch').value.toLowerCase().trim();
@@ -2218,7 +2290,7 @@ function switchAdmTab(id){
   if(id==='adm-media'){renderAdminGallery();renderAdminVideos();}
   if(id==='adm-cfg'){renderAdminApplications();}
   if(id==='adm-site'){loadSiteContentFields();renderAdminMediaPartners();renderAdminSponsors();}
-  if(id==='adm-team'){renderAdminTeam();populateDutiesRoleSelect();populateTeamDutyMemberSelect();renderTeamDutyRoster();renderTeamContactsOnly();renderChecklistQList();document.getElementById('teamTemplateText').value=(DB.smsSettings && DB.smsSettings.teamTemplate)||'';const wd=DB.witnessDefaults||{};document.getElementById('wdRecordTitle').value=wd.recordTitle||'';document.getElementById('wdAppRef').value=wd.appRef||'';document.getElementById('wdOrganisation').value=wd.organisation||'';document.getElementById('wdVenue').value=wd.venue||'';document.getElementById('wdCity').value=wd.city||'';document.getElementById('wdCountry').value=wd.country||'';document.getElementById('wdFinalMeasurement').value=wd.finalMeasurement||'';document.getElementById('wdExpertise').value=wd.expertise||'';const tk=DB.timekeeperDefaults||{};document.getElementById('tkRecordTitle').value=tk.recordTitle||'';document.getElementById('tkAppRef').value=tk.appRef||'';document.getElementById('tkOrganisation').value=tk.organisation||'';document.getElementById('tkVenue').value=tk.venue||'';document.getElementById('tkCity').value=tk.city||'';document.getElementById('tkCountry').value=tk.country||'';document.getElementById('tkFinalMeasurement').value=tk.finalMeasurement||'';document.getElementById('tkExpertise').value=tk.expertise||'';}
+  if(id==='adm-team'){renderAdminTeam();populateDutiesRoleSelect();populateTeamDutyMemberSelect();renderTeamDutyRoster();renderTeamContactsOnly();renderChecklistQList();document.getElementById('teamTemplateText').value=(DB.smsSettings && DB.smsSettings.teamTemplate)||'';const wd=DB.witnessDefaults||{};document.getElementById('wdRecordTitle').value=wd.recordTitle||'';document.getElementById('wdAppRef').value=wd.appRef||'';document.getElementById('wdOrganisation').value=wd.organisation||'';document.getElementById('wdVenue').value=wd.venue||'';document.getElementById('wdCity').value=wd.city||'';document.getElementById('wdCountry').value=wd.country||'';document.getElementById('wdFinalMeasurement').value=wd.finalMeasurement||'';document.getElementById('wdExpertise').value=wd.expertise||'';const tk=DB.timekeeperDefaults||{};document.getElementById('tkRecordTitle').value=tk.recordTitle||'';document.getElementById('tkAppRef').value=tk.appRef||'';document.getElementById('tkOrganisation').value=tk.organisation||'';document.getElementById('tkVenue').value=tk.venue||'';document.getElementById('tkCity').value=tk.city||'';document.getElementById('tkCountry').value=tk.country||'';document.getElementById('tkFinalMeasurement').value=tk.finalMeasurement||'';document.getElementById('tkExpertise').value=tk.expertise||'';const st=DB.stewardDefaults||{};document.getElementById('stRecordTitle').value=st.recordTitle||'';document.getElementById('stAppRef').value=st.appRef||'';document.getElementById('stCity').value=st.city||'';document.getElementById('stCountry').value=st.country||'';document.getElementById('stRegion').value=st.region||'';}
   if(id==='adm-checkin'){renderAdminCheckins();}
 }
 function updateAdmStats(){
@@ -4084,6 +4156,86 @@ function submitTimekeeperForm(){
   submitGenericForm('timekeeper', TIMEKEEPER_FIELDS, 'Time Keeper Statement', null, buildTimekeeperSummary);
 }
 
+/* ===== STEWARD STATEMENT: same pick-your-own-name auto-fill as Witness/Timekeeper ===== */
+function populateStewardNameSelect(){
+  const sel=document.getElementById('steward-whoAmI');
+  if(!sel) return;
+  const contacts=DB.teamContacts||{};
+  const members=DB.teamMembers||[];
+  const ids=Object.keys(contacts).filter(id=>contacts[id] && contacts[id].contact);
+  const options=ids.map(id=>{
+    const m=members.find(x=>String(x.id)===String(id));
+    return m ? {id, name:m.name} : null;
+  }).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name));
+  sel.innerHTML='<option value="">-- Select Your Name --</option>'+options.map(o=>`<option value="${o.id}">${qHtml(o.name)}</option>`).join('');
+}
+function fillStewardIdentity(id){
+  if(!id) return;
+  const m=(DB.teamMembers||[]).find(x=>String(x.id)===String(id));
+  const contact=(DB.teamContacts||{})[id]||{};
+  const sched=(DB.teamSchedules||{})[id];
+  if(!m) return;
+  const setVal=(fid,val)=>{ const el=document.getElementById('steward-'+fid); if(el) el.value=val||''; };
+  setVal('name', m.name);
+  setVal('email', contact.email);
+  setVal('phone', contact.contact);
+  if(sched && sched.date && sched.start && sched.end){
+    setVal('when', fmtSchedDate(sched.date)+', '+fmtSchedTime(sched.start)+' - '+fmtSchedTime(sched.end));
+  }
+}
+async function saveStewardDefaults(){
+  await loadDB();
+  if(!DB.stewardDefaults) DB.stewardDefaults={};
+  DB.stewardDefaults={
+    recordTitle: document.getElementById('stRecordTitle').value.trim(),
+    appRef: document.getElementById('stAppRef').value.trim(),
+    city: document.getElementById('stCity').value.trim(),
+    country: document.getElementById('stCountry').value.trim(),
+    region: document.getElementById('stRegion').value.trim()
+  };
+  await saveDB();
+  const ok=document.getElementById('stSaved');
+  ok.style.display='inline'; setTimeout(()=>ok.style.display='none',2500);
+}
+async function autoFillStewardDefaults(){
+  await loadDB();
+  populateStewardNameSelect();
+  const setVal=(fid,val)=>{ if(!val) return; const el=document.getElementById('steward-'+fid); if(el && !el.value) el.value=val; };
+  const st=DB.stewardDefaults||{};
+  setVal('recordTitle', st.recordTitle);
+  setVal('appRef', st.appRef);
+  setVal('city', st.city);
+  setVal('country', st.country);
+  setVal('region', st.region);
+}
+function buildStewardSummary(values){
+  const name=values.name || 'The steward';
+  const location=[values.city, values.region, values.country].filter(Boolean).join(', ');
+  const parts=[];
+  let opening=name+', stewarding the '+(values.recordTitle||'record')+' attempt';
+  if(location) opening+=' at '+location;
+  if(values.when) opening+=' during '+values.when;
+  opening+=', reports:';
+  parts.push(opening);
+  parts.push('');
+  if(values.role) parts.push('Role: '+values.role);
+  if(values.totalObserved) parts.push('Participants observed: '+values.totalObserved);
+  if(values.fullyParticipated) parts.push('Fully participated: '+values.fullyParticipated);
+  if(values.disqualified) parts.push('Disqualified: '+values.disqualified);
+  return parts.join('\n');
+}
+function copyStewardSummary(){
+  const text=document.getElementById('stewardSummaryText').textContent;
+  navigator.clipboard.writeText(text).then(()=>{
+    alert('✓ Summary copied — paste it wherever you need it.');
+  }).catch(()=>{
+    prompt('Copy this manually:', text);
+  });
+}
+function submitStewardForm(){
+  submitGenericForm('steward', STEWARD_FIELDS, 'Steward Statement', null, buildStewardSummary);
+}
+
 /* Observation checklist: admin defines yes/no prompts once; witnesses tick
    them on the form and their answers get written into a proper paragraph
    automatically, instead of typing everything from scratch. */
@@ -4440,7 +4592,7 @@ const FH_STAGE_IDS=['fh-menu-stage','fh-steward','fh-witness','fh-timekeeper','f
 async function fhShowStage(id){
   FH_STAGE_IDS.forEach(s=>document.getElementById(s).style.display='none');
   document.getElementById(id).style.display='block';
-  if(id==='fh-steward'){ renderGenericFormFields('steward', STEWARD_FIELDS); document.getElementById('fh-steward-err').style.display='none'; document.getElementById('fh-steward-success').style.display='none'; }
+  if(id==='fh-steward'){ renderGenericFormFields('steward', STEWARD_FIELDS); document.getElementById('fh-steward-err').style.display='none'; document.getElementById('fh-steward-success').style.display='none'; document.getElementById('stewardSummaryBox').style.display='none'; autoFillStewardDefaults(); }
   if(id==='fh-witness'){ renderGenericFormFields('witness', WITNESS_FIELDS); document.getElementById('fh-witness-err').style.display='none'; document.getElementById('fh-witness-success').style.display='none'; document.getElementById('witnessSummaryBox').style.display='none'; autoFillWitnessDefaults(); renderWitnessChecklistForm(); }
   if(id==='fh-timekeeper'){ renderGenericFormFields('timekeeper', TIMEKEEPER_FIELDS); document.getElementById('fh-timekeeper-err').style.display='none'; document.getElementById('fh-timekeeper-success').style.display='none'; document.getElementById('timekeeperSummaryBox').style.display='none'; autoFillTimekeeperDefaults(); }
   if(id==='fh-cover'){ renderGenericFormFields('cover', COVER_FIELDS); document.getElementById('fh-cover-err').style.display='none'; document.getElementById('fh-cover-success').style.display='none'; }
@@ -4551,8 +4703,17 @@ async function submitGenericForm(prefix, fields, formTitle, requiredIds, summary
     const doc=buildStatementPDF(formTitle, fields, values);
     const blob=doc.output('blob');
     const fname=formTitle.replace(/\s+/g,'_').toLowerCase()+'-'+String(nameVal).replace(/[^a-z0-9]/gi,'_').toLowerCase()+'.pdf';
-    await sendTGDocument(blob, fname, '📋 '+formTitle+' submitted by '+nameVal);
+    const sendOk=await sendTGDocument(blob, fname, '📋 '+formTitle+' submitted by '+nameVal);
     okEl.style.display='block';
+    okEl.textContent = sendOk
+      ? '✓ Submitted! A PDF copy has been sent to the admin.'
+      : '✓ Saved! Your connection seems weak right now, so this is saved on your device and will send automatically once it reconnects — no need to redo anything.';
+    try{
+      await loadDB();
+      if(!DB.formSubmissionLog) DB.formSubmissionLog=[];
+      DB.formSubmissionLog.push({type:formTitle, name:nameVal, dateStr:localDateStr(new Date()), at:new Date().toISOString()});
+      await saveDB();
+    }catch(e){}
     if(summaryBuilder){
       const summaryBox=document.getElementById(prefix+'SummaryBox');
       const summaryText=document.getElementById(prefix+'SummaryText');
@@ -4586,11 +4747,19 @@ function lbSetType(type){
   rBtn.style.border = type==='rest' ? '' : '1px solid rgba(255,255,255,0.25)';
   const container=document.getElementById('fh-logbook-fields');
   const witnessRows = `
-      <div style="display:flex;gap:8px;margin-top:0.7rem;">
+      <div style="margin-top:0.7rem;">
+        <label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">Witness 1 — Quick Select</label>
+        <select class="tr-select" id="lb-w1select" onchange="fillLogbookWitness(1, this.value)" style="width:100%;margin-bottom:0.5rem;"><option value="">-- Select Name (or type below) --</option></select>
+      </div>
+      <div style="display:flex;gap:8px;">
         <div style="flex:1;"><label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">Witness 1 — Print Name</label><input type="text" class="pm-inp" id="lb-w1name" placeholder="e.g. JOHN SMITH" style="width:100%;"/></div>
         <div style="flex:1;"><label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">Witness 1 — Signature</label><input type="text" class="pm-inp" id="lb-w1sign" placeholder="e.g. John Smith" style="width:100%;"/></div>
       </div>
-      <div style="display:flex;gap:8px;margin-top:0.7rem;">
+      <div style="margin-top:0.7rem;">
+        <label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">Witness 2 — Quick Select</label>
+        <select class="tr-select" id="lb-w2select" onchange="fillLogbookWitness(2, this.value)" style="width:100%;margin-bottom:0.5rem;"><option value="">-- Select Name (or type below) --</option></select>
+      </div>
+      <div style="display:flex;gap:8px;">
         <div style="flex:1;"><label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">Witness 2 — Print Name</label><input type="text" class="pm-inp" id="lb-w2name" placeholder="e.g. JANE WHITE" style="width:100%;"/></div>
         <div style="flex:1;"><label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;">Witness 2 — Signature</label><input type="text" class="pm-inp" id="lb-w2sign" placeholder="e.g. Jane White" style="width:100%;"/></div>
       </div>`;
@@ -4620,6 +4789,25 @@ function lbSetType(type){
   }
   document.getElementById('fh-logbook-err').style.display='none';
   document.getElementById('fh-logbook-success').style.display='none';
+  populateLogbookWitnessSelects();
+}
+function populateLogbookWitnessSelects(){
+  const contacts=DB.teamContacts||{};
+  const members=DB.teamMembers||[];
+  const ids=Object.keys(contacts).filter(id=>contacts[id] && contacts[id].contact);
+  const options=ids.map(id=>{
+    const m=members.find(x=>String(x.id)===String(id));
+    return m ? m.name : null;
+  }).filter(Boolean).sort((a,b)=>a.localeCompare(b));
+  const optHtml='<option value="">-- Select Name (or type below) --</option>'+options.map(n=>`<option value="${qHtml(n)}">${qHtml(n)}</option>`).join('');
+  const s1=document.getElementById('lb-w1select'), s2=document.getElementById('lb-w2select');
+  if(s1) s1.innerHTML=optHtml;
+  if(s2) s2.innerHTML=optHtml;
+}
+function fillLogbookWitness(num, name){
+  if(!name) return;
+  document.getElementById('lb-w'+num+'name').value=name.toUpperCase();
+  document.getElementById('lb-w'+num+'sign').value=name;
 }
 function buildLogbookEntryPDF(entry){
   const { jsPDF } = window.jspdf;
@@ -4930,10 +5118,21 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closePortal();});
     <div id="fh-steward" style="display:none;">
       <a onclick="fhBackToMenu()" style="color:var(--muted);font-size:0.78rem;cursor:pointer;display:inline-block;margin-bottom:0.8rem;">&#8592; Back to Forms Menu</a>
       <h3 style="color:var(--gold);">&#128221; Steward Statement</h3>
+      <div style="background:rgba(46,233,255,0.08);border:1px solid rgba(46,233,255,0.3);border-radius:4px;padding:0.8rem;margin-bottom:0.9rem;">
+        <label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:6px;">Who's filling this in?</label>
+        <select class="tr-select" id="steward-whoAmI" onchange="fillStewardIdentity(this.value)" style="width:100%;">
+          <option value="">-- Select Your Name --</option>
+        </select>
+      </div>
       <div id="fh-steward-fields"></div>
-      <button class="pm-btn" style="background:#FFC857;border-color:#FFC857;color:#1A0308;margin-top:0.6rem;" onclick="submitGenericForm('steward', STEWARD_FIELDS, 'Steward Statement')">Submit &amp; Send PDF</button>
+      <button class="pm-btn" style="background:#FFC857;border-color:#FFC857;color:#1A0308;margin-top:0.6rem;" onclick="submitStewardForm()">Submit &amp; Send PDF</button>
       <div class="pm-err" id="fh-steward-err">Please fill in your name and signature at least.</div>
       <div class="bm-success" id="fh-steward-success">&#10003; Submitted! A PDF copy has been sent to the admin.</div>
+      <div id="stewardSummaryBox" style="display:none;background:rgba(46,233,255,0.08);border:1px solid rgba(46,233,255,0.3);border-radius:4px;padding:1rem;margin-top:1rem;">
+        <div style="font-size:0.72rem;color:#7FE0A8;font-weight:700;margin-bottom:0.5rem;">&#128203; AUTO-GENERATED SUMMARY — copy this wherever you're asked what you did:</div>
+        <div id="stewardSummaryText" style="font-size:0.85rem;white-space:pre-line;line-height:1.6;margin-bottom:0.75rem;"></div>
+        <button class="pm-btn" style="background:rgba(255,255,255,0.1);width:auto;padding:9px 20px;font-size:0.8rem;" onclick="copyStewardSummary()">&#128203; Copy Summary</button>
+      </div>
     </div>
 
     <!-- WITNESS -->
