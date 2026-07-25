@@ -1217,6 +1217,25 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
           <span id="wdSaved" style="display:none;color:#7FE0A8;font-size:0.75rem;margin-left:8px;">&#10003; Saved</span>
         </div>
 
+        <div style="background:rgba(212,175,55,0.06);border:1px solid rgba(212,175,55,0.3);border-radius:4px;padding:1.1rem 1.25rem;margin-bottom:1.5rem;">
+          <div class="adm-label" style="margin-bottom:0.4rem;">&#128204; Timekeeper Statement Defaults</div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">Fill these in once — they auto-fill every time the form opens. "When were you present" auto-fills too, pulled from that person's saved duty date/start/end above. Only "describe your role/equipment used" stays blank for them to fill in each time.</div>
+          <div style="display:flex;gap:0.6rem;margin-bottom:0.6rem;">
+            <input type="text" class="pm-inp" id="tkRecordTitle" placeholder="Record Title" style="flex:1;"/>
+            <input type="text" class="pm-inp" id="tkAppRef" placeholder="Application Reference Number" style="flex:1;"/>
+          </div>
+          <input type="text" class="pm-inp" id="tkOrganisation" placeholder="Organisation" style="margin-bottom:0.6rem;"/>
+          <div style="display:flex;gap:0.6rem;margin-bottom:0.6rem;">
+            <input type="text" class="pm-inp" id="tkVenue" placeholder="Venue" style="flex:1;"/>
+            <input type="text" class="pm-inp" id="tkCity" placeholder="City/Town" style="flex:1;"/>
+            <input type="text" class="pm-inp" id="tkCountry" placeholder="Country" style="flex:1;"/>
+          </div>
+          <input type="text" class="pm-inp" id="tkFinalMeasurement" placeholder="Final Measurement (e.g. 52 hours 30 minutes so far)" style="margin-bottom:0.6rem;"/>
+          <textarea class="pm-inp" id="tkExpertise" rows="2" placeholder="My expertise in timekeeping is" style="width:100%;resize:vertical;margin-bottom:0.6rem;"></textarea>
+          <button class="pm-btn" style="background:#3DB871;border-color:#3DB871;width:auto;padding:9px 20px;font-size:0.8rem;" onclick="saveTimekeeperDefaults()">&#128190; Save Defaults</button>
+          <span id="tkSaved" style="display:none;color:#7FE0A8;font-size:0.75rem;margin-left:8px;">&#10003; Saved</span>
+        </div>
+
         <div style="background:rgba(255,200,87,0.06);border:1px solid rgba(255,200,87,0.3);border-radius:4px;padding:1.1rem 1.25rem;margin-bottom:1.5rem;">
           <div class="adm-label" style="margin-bottom:0.4rem;">&#128172; Send One Message To Everyone</div>
           <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">A one-off broadcast — not tied to duty times. Goes to every team member with a saved phone number, whether or not they have a duty assigned. You can use <code>{name}</code>.</div>
@@ -1401,7 +1420,7 @@ const GUESTS=[
 // the public page.
 const DB_API = "/api/db";
 
-let DB = {questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[], smsSettings:{template:''}, scheduledSms:[], teamContacts:{}, teamSchedules:{}, witnessDefaults:{}, witnessChecklist:[]};
+let DB = {questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[], smsSettings:{template:''}, scheduledSms:[], teamContacts:{}, teamSchedules:{}, witnessDefaults:{}, witnessChecklist:[], timekeeperDefaults:{}};
 
 let _lastLoadTime=0;
 const LOAD_CACHE_MS=4000; // rapid repeated loadDB() calls (e.g. switching tabs, several saves in a row) reuse the same data instead of each firing a fresh request
@@ -1481,7 +1500,7 @@ function restoreBackup(event){
       event.target.value='';
       return;
     }
-    DB = Object.assign({questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[], smsSettings:{template:''}, scheduledSms:[], teamContacts:{}, teamSchedules:{}, witnessDefaults:{}, witnessChecklist:[]}, parsed);
+    DB = Object.assign({questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[], smsSettings:{template:''}, scheduledSms:[], teamContacts:{}, teamSchedules:{}, witnessDefaults:{}, witnessChecklist:[], timekeeperDefaults:{}}, parsed);
     const saved=await saveDB();
     event.target.value='';
     if(saved){
@@ -2199,7 +2218,7 @@ function switchAdmTab(id){
   if(id==='adm-media'){renderAdminGallery();renderAdminVideos();}
   if(id==='adm-cfg'){renderAdminApplications();}
   if(id==='adm-site'){loadSiteContentFields();renderAdminMediaPartners();renderAdminSponsors();}
-  if(id==='adm-team'){renderAdminTeam();populateDutiesRoleSelect();populateTeamDutyMemberSelect();renderTeamDutyRoster();renderTeamContactsOnly();renderChecklistQList();document.getElementById('teamTemplateText').value=(DB.smsSettings && DB.smsSettings.teamTemplate)||'';const wd=DB.witnessDefaults||{};document.getElementById('wdRecordTitle').value=wd.recordTitle||'';document.getElementById('wdAppRef').value=wd.appRef||'';document.getElementById('wdOrganisation').value=wd.organisation||'';document.getElementById('wdVenue').value=wd.venue||'';document.getElementById('wdCity').value=wd.city||'';document.getElementById('wdCountry').value=wd.country||'';document.getElementById('wdFinalMeasurement').value=wd.finalMeasurement||'';document.getElementById('wdExpertise').value=wd.expertise||'';}
+  if(id==='adm-team'){renderAdminTeam();populateDutiesRoleSelect();populateTeamDutyMemberSelect();renderTeamDutyRoster();renderTeamContactsOnly();renderChecklistQList();document.getElementById('teamTemplateText').value=(DB.smsSettings && DB.smsSettings.teamTemplate)||'';const wd=DB.witnessDefaults||{};document.getElementById('wdRecordTitle').value=wd.recordTitle||'';document.getElementById('wdAppRef').value=wd.appRef||'';document.getElementById('wdOrganisation').value=wd.organisation||'';document.getElementById('wdVenue').value=wd.venue||'';document.getElementById('wdCity').value=wd.city||'';document.getElementById('wdCountry').value=wd.country||'';document.getElementById('wdFinalMeasurement').value=wd.finalMeasurement||'';document.getElementById('wdExpertise').value=wd.expertise||'';const tk=DB.timekeeperDefaults||{};document.getElementById('tkRecordTitle').value=tk.recordTitle||'';document.getElementById('tkAppRef').value=tk.appRef||'';document.getElementById('tkOrganisation').value=tk.organisation||'';document.getElementById('tkVenue').value=tk.venue||'';document.getElementById('tkCity').value=tk.city||'';document.getElementById('tkCountry').value=tk.country||'';document.getElementById('tkFinalMeasurement').value=tk.finalMeasurement||'';document.getElementById('tkExpertise').value=tk.expertise||'';}
   if(id==='adm-checkin'){renderAdminCheckins();}
 }
 function updateAdmStats(){
@@ -3973,6 +3992,98 @@ async function autoFillWitnessDefaults(){
   setVal('expertise', wd.expertise);
 }
 
+/* ===== TIMEKEEPER STATEMENT: same pick-your-own-name auto-fill as Witness ===== */
+function populateTimekeeperNameSelect(){
+  const sel=document.getElementById('timekeeper-whoAmI');
+  if(!sel) return;
+  const contacts=DB.teamContacts||{};
+  const members=DB.teamMembers||[];
+  const ids=Object.keys(contacts).filter(id=>contacts[id] && contacts[id].contact);
+  const options=ids.map(id=>{
+    const m=members.find(x=>String(x.id)===String(id));
+    return m ? {id, name:m.name} : null;
+  }).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name));
+  sel.innerHTML='<option value="">-- Select Your Name --</option>'+options.map(o=>`<option value="${o.id}">${qHtml(o.name)}</option>`).join('');
+}
+function fillTimekeeperIdentity(id){
+  if(!id) return;
+  const m=(DB.teamMembers||[]).find(x=>String(x.id)===String(id));
+  const contact=(DB.teamContacts||{})[id]||{};
+  const sched=(DB.teamSchedules||{})[id];
+  if(!m) return;
+  const nameParts=m.name.trim().split(/\s+/);
+  const firstName=nameParts[0]||'';
+  const lastName=nameParts.slice(1).join(' ')||'';
+  const setVal=(fid,val)=>{ const el=document.getElementById('timekeeper-'+fid); if(el) el.value=val||''; };
+  setVal('firstName', firstName);
+  setVal('lastName', lastName);
+  setVal('email', contact.email);
+  setVal('phone', contact.contact);
+  setVal('nationality', contact.nationality);
+  if(sched && sched.date && sched.start && sched.end){
+    setVal('when', fmtSchedDate(sched.date)+', '+fmtSchedTime(sched.start)+' - '+fmtSchedTime(sched.end));
+  }
+}
+async function saveTimekeeperDefaults(){
+  await loadDB();
+  if(!DB.timekeeperDefaults) DB.timekeeperDefaults={};
+  DB.timekeeperDefaults={
+    recordTitle: document.getElementById('tkRecordTitle').value.trim(),
+    appRef: document.getElementById('tkAppRef').value.trim(),
+    organisation: document.getElementById('tkOrganisation').value.trim(),
+    venue: document.getElementById('tkVenue').value.trim(),
+    city: document.getElementById('tkCity').value.trim(),
+    country: document.getElementById('tkCountry').value.trim(),
+    finalMeasurement: document.getElementById('tkFinalMeasurement').value.trim(),
+    expertise: document.getElementById('tkExpertise').value.trim()
+  };
+  await saveDB();
+  const ok=document.getElementById('tkSaved');
+  ok.style.display='inline'; setTimeout(()=>ok.style.display='none',2500);
+}
+async function autoFillTimekeeperDefaults(){
+  await loadDB();
+  populateTimekeeperNameSelect();
+  const setVal=(fid,val)=>{ if(!val) return; const el=document.getElementById('timekeeper-'+fid); if(el && !el.value) el.value=val; };
+  const tk=DB.timekeeperDefaults||{};
+  setVal('recordTitle', tk.recordTitle);
+  setVal('appRef', tk.appRef);
+  setVal('organisation', tk.organisation);
+  setVal('venue', tk.venue);
+  setVal('city', tk.city);
+  setVal('country', tk.country);
+  setVal('finalMeasurement', tk.finalMeasurement);
+  setVal('expertise', tk.expertise);
+}
+function buildTimekeeperSummary(values){
+  const name=[values.firstName, values.lastName].filter(Boolean).join(' ') || 'The timekeeper';
+  const venue=[values.venue, values.city, values.country].filter(Boolean).join(', ');
+  const parts=[];
+  let opening=name+', timekeeping the '+(values.recordTitle||'record')+' attempt';
+  if(venue) opening+=' at '+venue;
+  if(values.when) opening+=' during '+values.when;
+  opening+=', reports:';
+  parts.push(opening);
+  parts.push('');
+  parts.push(values.roleDesc || '(no role/equipment details entered)');
+  if(values.finalMeasurement){
+    parts.push('');
+    parts.push('Final measurement recorded: '+values.finalMeasurement+'.');
+  }
+  return parts.join('\n');
+}
+function copyTimekeeperSummary(){
+  const text=document.getElementById('timekeeperSummaryText').textContent;
+  navigator.clipboard.writeText(text).then(()=>{
+    alert('✓ Summary copied — paste it wherever you need it.');
+  }).catch(()=>{
+    prompt('Copy this manually:', text);
+  });
+}
+function submitTimekeeperForm(){
+  submitGenericForm('timekeeper', TIMEKEEPER_FIELDS, 'Time Keeper Statement', null, buildTimekeeperSummary);
+}
+
 /* Observation checklist: admin defines yes/no prompts once; witnesses tick
    them on the form and their answers get written into a proper paragraph
    automatically, instead of typing everything from scratch. */
@@ -4331,7 +4442,7 @@ async function fhShowStage(id){
   document.getElementById(id).style.display='block';
   if(id==='fh-steward'){ renderGenericFormFields('steward', STEWARD_FIELDS); document.getElementById('fh-steward-err').style.display='none'; document.getElementById('fh-steward-success').style.display='none'; }
   if(id==='fh-witness'){ renderGenericFormFields('witness', WITNESS_FIELDS); document.getElementById('fh-witness-err').style.display='none'; document.getElementById('fh-witness-success').style.display='none'; document.getElementById('witnessSummaryBox').style.display='none'; autoFillWitnessDefaults(); renderWitnessChecklistForm(); }
-  if(id==='fh-timekeeper'){ renderGenericFormFields('timekeeper', TIMEKEEPER_FIELDS); document.getElementById('fh-timekeeper-err').style.display='none'; document.getElementById('fh-timekeeper-success').style.display='none'; }
+  if(id==='fh-timekeeper'){ renderGenericFormFields('timekeeper', TIMEKEEPER_FIELDS); document.getElementById('fh-timekeeper-err').style.display='none'; document.getElementById('fh-timekeeper-success').style.display='none'; document.getElementById('timekeeperSummaryBox').style.display='none'; autoFillTimekeeperDefaults(); }
   if(id==='fh-cover'){ renderGenericFormFields('cover', COVER_FIELDS); document.getElementById('fh-cover-err').style.display='none'; document.getElementById('fh-cover-success').style.display='none'; }
   if(id==='fh-logbook'){ await loadDB(); lbSetType('activity'); renderLogbookList(); }
   if(id==='fh-qtracker'){ if(!qtDirty){ await loadDB(); } qtPopulateGuestSelect(); updateQtSaveButton(); }
@@ -4861,10 +4972,21 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closePortal();});
     <div id="fh-timekeeper" style="display:none;">
       <a onclick="fhBackToMenu()" style="color:var(--muted);font-size:0.78rem;cursor:pointer;display:inline-block;margin-bottom:0.8rem;">&#8592; Back to Forms Menu</a>
       <h3 style="color:var(--gold);">&#9200; Time Keeper Statement</h3>
+      <div style="background:rgba(46,233,255,0.08);border:1px solid rgba(46,233,255,0.3);border-radius:4px;padding:0.8rem;margin-bottom:0.9rem;">
+        <label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:6px;">Who's filling this in?</label>
+        <select class="tr-select" id="timekeeper-whoAmI" onchange="fillTimekeeperIdentity(this.value)" style="width:100%;">
+          <option value="">-- Select Your Name --</option>
+        </select>
+      </div>
       <div id="fh-timekeeper-fields"></div>
-      <button class="pm-btn" style="background:#FFC857;border-color:#FFC857;color:#1A0308;margin-top:0.6rem;" onclick="submitGenericForm('timekeeper', TIMEKEEPER_FIELDS, 'Time Keeper Statement')">Submit &amp; Send PDF</button>
+      <button class="pm-btn" style="background:#FFC857;border-color:#FFC857;color:#1A0308;margin-top:0.6rem;" onclick="submitTimekeeperForm()">Submit &amp; Send PDF</button>
       <div class="pm-err" id="fh-timekeeper-err">Please fill in your name and signature at least.</div>
       <div class="bm-success" id="fh-timekeeper-success">&#10003; Submitted! A PDF copy has been sent to the admin.</div>
+      <div id="timekeeperSummaryBox" style="display:none;background:rgba(46,233,255,0.08);border:1px solid rgba(46,233,255,0.3);border-radius:4px;padding:1rem;margin-top:1rem;">
+        <div style="font-size:0.72rem;color:#7FE0A8;font-weight:700;margin-bottom:0.5rem;">&#128203; AUTO-GENERATED SUMMARY — copy this wherever you're asked what you did:</div>
+        <div id="timekeeperSummaryText" style="font-size:0.85rem;white-space:pre-line;line-height:1.6;margin-bottom:0.75rem;"></div>
+        <button class="pm-btn" style="background:rgba(255,255,255,0.1);width:auto;padding:9px 20px;font-size:0.8rem;" onclick="copyTimekeeperSummary()">&#128203; Copy Summary</button>
+      </div>
     </div>
 
     <!-- ACTIVITY LOG BOOK -->
