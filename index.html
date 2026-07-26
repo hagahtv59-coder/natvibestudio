@@ -777,6 +777,23 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
         </div>
         <button class="pm-btn gold" style="width:auto;padding:11px 28px;margin-top:.75rem;" onclick="addQuestion()">&#43; Add Question(s)</button>
         <div class="adm-success" id="admSuccess">&#10003; Question(s) added successfully!</div>
+
+        <div style="background:rgba(155,89,255,0.06);border:1px solid rgba(155,89,255,0.3);border-radius:4px;padding:1.1rem 1.25rem;margin-top:2rem;">
+          <div class="adm-label" style="margin-bottom:0.4rem;">&#129504; Role Question Bank (Auto-Fill Questions by Role)</div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">Set a reusable list of questions for a role once (e.g. "Musician", "Athlete") — you can use <code>{name}</code> to insert the guest's name. Any guest added with a matching role automatically gets these questions, no retyping. Works for future guests right away, or run the bulk button below to catch up any existing guests who don't have questions yet.</div>
+          <input type="text" class="pm-inp" id="rqbRole" placeholder="Role (e.g. Musician)" style="margin-bottom:0.6rem;"/>
+          <textarea class="adm-ta" id="rqbQuestions" style="min-height:130px;margin-bottom:0.6rem;" placeholder="One question per line, e.g.:&#10;What inspired you to become a {name}?&#10;What has been your proudest moment so far?"></textarea>
+          <button class="pm-btn" style="background:#9B59FF;border-color:#9B59FF;width:auto;padding:11px 24px;" onclick="saveRoleQuestionBank()">&#128190; Save Bank for This Role</button>
+          <div id="rqbSaved" style="display:none;color:#7FE0A8;font-size:0.75rem;margin-top:6px;">&#10003; Saved</div>
+          <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid rgba(255,255,255,0.1);">
+            <div class="adm-label" style="margin-bottom:0.6rem;">Saved Role Banks</div>
+            <div id="rqbList"></div>
+          </div>
+          <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid rgba(255,255,255,0.1);">
+            <button class="pm-btn" style="background:rgba(255,255,255,0.08);width:auto;padding:11px 24px;" onclick="autoFillMissingQuestions()">&#128256; Auto-Fill Questions For All Guests Missing Them</button>
+            <div id="rqbBulkStatus" style="font-size:0.78rem;margin-top:8px;"></div>
+          </div>
+        </div>
       </div>
       <!-- VIEW -->
       <div class="adm-tc" id="adm-view">
@@ -1436,7 +1453,7 @@ const GUESTS=[
 // the public page.
 const DB_API = "/api/db";
 
-let DB = {questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[], smsSettings:{template:''}, scheduledSms:[], teamContacts:{}, teamSchedules:{}, witnessDefaults:{}, witnessChecklist:[], timekeeperDefaults:{}, stewardDefaults:{}, formSubmissionLog:[]};
+let DB = {questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[], smsSettings:{template:''}, scheduledSms:[], teamContacts:{}, teamSchedules:{}, witnessDefaults:{}, witnessChecklist:[], timekeeperDefaults:{}, stewardDefaults:{}, formSubmissionLog:[], roleQuestionBank:{}};
 
 let _lastLoadTime=0;
 const LOAD_CACHE_MS=4000; // rapid repeated loadDB() calls (e.g. switching tabs, several saves in a row) reuse the same data instead of each firing a fresh request
@@ -1516,7 +1533,7 @@ function restoreBackup(event){
       event.target.value='';
       return;
     }
-    DB = Object.assign({questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[], smsSettings:{template:''}, scheduledSms:[], teamContacts:{}, teamSchedules:{}, witnessDefaults:{}, witnessChecklist:[], timekeeperDefaults:{}, stewardDefaults:{}, formSubmissionLog:[]}, parsed);
+    DB = Object.assign({questions:[], accesses:0, guests:[], schedules:{}, hiddenGuests:[], gallery:[], videos:[], guestApplications:[], mediaPartners:[], sponsors:[], siteContent:{}, teamMembers:[], checkins:[], roleDuties:{}, teamRoles:[], logbook:[], guestContacts:{}, announcements:[], issueReports:[], scheduleSettings:{defaultDuration:40}, adminNotes:[], smsSettings:{template:''}, scheduledSms:[], teamContacts:{}, teamSchedules:{}, witnessDefaults:{}, witnessChecklist:[], timekeeperDefaults:{}, stewardDefaults:{}, formSubmissionLog:[], roleQuestionBank:{}}, parsed);
     const saved=await saveDB();
     event.target.value='';
     if(saved){
@@ -1585,7 +1602,7 @@ async function adminLogin(){
     // Load DB in background while showing welcome popup
     populateAdmSelects();
     document.getElementById('admQList').innerHTML='Loading...';
-    loadDB().then(()=>{renderAdminQ();updateAdmStats();updateCfgBadge();updateTeamBadge();updateIssueBadge();populateAdmSelects();});
+    loadDB().then(()=>{renderAdminQ();updateAdmStats();updateCfgBadge();updateTeamBadge();updateIssueBadge();populateAdmSelects();renderRoleQuestionBankList();});
     // Show welcome popup first
     showPM('pm-admin-welcome');
   }else{document.getElementById('adminErr').style.display='block';}
@@ -2111,6 +2128,92 @@ function updateAdmGuestCount(){
   }
   document.querySelectorAll('.site-guest-count').forEach(e=>e.textContent=total);
 }
+function getGuestRole(name){
+  const g=GUESTS.find(x=>x.n===name);
+  if(g) return g.r||'';
+  const d=(DB.guests||[]).find(x=>x.name===name);
+  return d?(d.role||''):'';
+}
+async function saveRoleQuestionBank(){
+  const role=document.getElementById('rqbRole').value.trim();
+  const raw=document.getElementById('rqbQuestions').value.trim();
+  if(!role||!raw){ alert('Please enter a role and at least one question.'); return; }
+  const lines=splitQuestionLines(raw);
+  if(!lines.length){ alert('Please enter at least one question.'); return; }
+  await loadDB();
+  if(!DB.roleQuestionBank) DB.roleQuestionBank={};
+  DB.roleQuestionBank[role]=lines;
+  await saveDB();
+  document.getElementById('rqbRole').value='';
+  document.getElementById('rqbQuestions').value='';
+  const ok=document.getElementById('rqbSaved');
+  ok.style.display='block'; setTimeout(()=>ok.style.display='none',2500);
+  renderRoleQuestionBankList();
+}
+function editRoleQuestionBank(role){
+  const qs=(DB.roleQuestionBank||{})[role]||[];
+  document.getElementById('rqbRole').value=role;
+  document.getElementById('rqbQuestions').value=qs.join('\n');
+}
+async function deleteRoleQuestionBank(role){
+  if(!confirm('Delete the question bank for "'+role+'"? Guests already assigned these questions keep them — this only affects future auto-fills.'))return;
+  await loadDB();
+  delete (DB.roleQuestionBank||{})[role];
+  await saveDB();
+  renderRoleQuestionBankList();
+}
+function renderRoleQuestionBankList(){
+  const box=document.getElementById('rqbList');
+  if(!box) return;
+  const bank=DB.roleQuestionBank||{};
+  const roles=Object.keys(bank);
+  if(!roles.length){ box.innerHTML='<div style="color:var(--muted);font-size:0.8rem;">No role banks saved yet.</div>'; return; }
+  box.innerHTML=roles.map(role=>`<div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.04);border-radius:3px;padding:8px 10px;margin-bottom:6px;">
+    <span style="flex:1;font-size:0.85rem;"><strong>${qHtml(role)}</strong> — ${bank[role].length} question${bank[role].length!==1?'s':''}</span>
+    <button class="adm-del" style="background:rgba(155,89,255,0.2);color:#C9A8FF;" onclick="editRoleQuestionBank('${role.replace(/'/g,"\\'")}')">&#9998; Edit</button>
+    <button class="adm-del" onclick="deleteRoleQuestionBank('${role.replace(/'/g,"\\'")}')">&#128465;</button>
+  </div>`).join('');
+}
+// Generates this guest's questions from the matching role bank (if any),
+// substituting {name}. Returns the number of questions added (0 if no
+// matching bank, or the guest already has questions).
+function generateQuestionsFromBank(name, role){
+  if(!DB.questions) DB.questions=[];
+  const alreadyHas=DB.questions.some(q=>q.guest===name);
+  if(alreadyHas) return 0;
+  const bank=DB.roleQuestionBank||{};
+  const matchKey=Object.keys(bank).find(r=>r.toLowerCase()===String(role||'').toLowerCase());
+  if(!matchKey) return 0;
+  const templates=bank[matchKey];
+  templates.forEach((t,i)=>{
+    DB.questions.push({guest:name, text:t.replace(/\{name\}/g, name), id:Date.now()+i});
+  });
+  return templates.length;
+}
+async function autoFillMissingQuestions(){
+  const statusEl=document.getElementById('rqbBulkStatus');
+  statusEl.style.color='var(--muted)'; statusEl.textContent='Checking guests...';
+  await loadDB();
+  const names=allGuestNames();
+  let filled=0, guestsFilled=0, skippedNoBank=0;
+  names.forEach(name=>{
+    const hasQuestions=(DB.questions||[]).some(q=>q.guest===name);
+    if(hasQuestions) return;
+    const role=getGuestRole(name);
+    const added=generateQuestionsFromBank(name, role);
+    if(added>0){ filled+=added; guestsFilled++; } else { skippedNoBank++; }
+  });
+  if(filled>0){
+    await saveDB();
+    updateAdmStats();
+    renderAdminQ();
+  }
+  statusEl.style.color=filled>0?'#7FE0A8':'var(--muted)';
+  statusEl.textContent = filled>0
+    ? `✓ Done. Filled ${guestsFilled} guest(s) with ${filled} questions total.${skippedNoBank?(' '+skippedNoBank+' guest(s) had no matching role bank, so were skipped.'):''}`
+    : `Nothing to fill — either everyone already has questions, or no role bank matches the guests missing them (${skippedNoBank} skipped).`;
+}
+
 function splitQuestionLines(raw){
   // Splits a pasted block of text into individual questions.
   // Handles one-per-line input, AND paragraphs where numbered/bulleted
@@ -2281,6 +2384,7 @@ function switchAdmTab(id){
   document.querySelectorAll('.adm-tab').forEach((t,i)=>t.classList.toggle('active',['adm-add','adm-view','adm-guests','adm-contacts','adm-notes','adm-schedule','adm-media','adm-cfg','adm-site','adm-team','adm-alerts','adm-checkin'][i]===id));
   document.querySelectorAll('.adm-tc').forEach(t=>t.classList.remove('active'));
   document.getElementById(id).classList.add('active');
+  if(id==='adm-add')renderRoleQuestionBankList();
   if(id==='adm-view')renderAdminQ();
   if(id==='adm-guests'){renderAdminGuests();populateRemoveGuestSelect();renderRemovedGuests();}
   if(id==='adm-contacts'){populateContactGuestSelect();renderGuestContactsTable();document.getElementById('smsTemplateText').value=(DB.smsSettings && DB.smsSettings.template)||'';populateRemindGuestSelect();renderScheduledReminders();}
@@ -2321,6 +2425,7 @@ async function addGuest(){
     await loadDB();
     if(!DB.guests) DB.guests=[];
     DB.guests.push({id:Date.now(), name, role, img:imgUrl});
+    const questionsAdded=generateQuestionsFromBank(name, role);
     const saved = await saveDB();
     if(!saved){
       // saveDB() already alerted with the real reason. Roll back the in-memory add so the UI doesn't lie.
@@ -2333,8 +2438,11 @@ async function addGuest(){
     document.getElementById('newGuestName').value='';
     document.getElementById('newGuestRole').value='';
     fileInput.value='';
+    okEl.textContent = questionsAdded>0
+      ? `✓ Guest added — and ${questionsAdded} question(s) auto-filled from the "${role}" role bank!`
+      : '✓ Guest added successfully!';
     okEl.style.display='block';
-    setTimeout(()=>okEl.style.display='none',3000);
+    setTimeout(()=>okEl.style.display='none',4000);
     renderAdminGuests();
     renderDynamicGuests();
     updateAdmStats();
