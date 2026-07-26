@@ -134,7 +134,7 @@ module.exports = async (req, res) => {
         teamContacts: DB.teamContacts || {}, teamSchedules: DB.teamSchedules || {},
         witnessDefaults: DB.witnessDefaults || {}, witnessChecklist: DB.witnessChecklist || [],
         timekeeperDefaults: DB.timekeeperDefaults || {}, stewardDefaults: DB.stewardDefaults || {},
-        formSubmissionLog: DB.formSubmissionLog || []
+        formSubmissionLog: DB.formSubmissionLog || [], roleQuestionBank: DB.roleQuestionBank || {}
       };
 
       const failures = [];
