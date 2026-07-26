@@ -624,7 +624,10 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
         <div class="q-hdr-role" id="qGuestRole"></div>
       </div>
       <div class="q-items" id="qItems"></div>
-      <button class="pm-btn" id="qPdfBtn" style="margin-top:1.2rem;" onclick="downloadQuestionsPDF()">&#8681; Download as PDF</button>
+      <div style="display:flex;gap:0.6rem;margin-top:1.2rem;flex-wrap:wrap;">
+        <button class="pm-btn" id="qPdfBtn" style="width:auto;flex:1;min-width:160px;" onclick="downloadQuestionsPDF()">&#8681; Download as PDF</button>
+        <button class="pm-btn" id="qPptBtn" style="width:auto;flex:1;min-width:160px;background:#D24726;border-color:#D24726;" onclick="downloadQuestionsPPTX()">&#8681; Download as PowerPoint</button>
+      </div>
     </div>
   </div>
 
@@ -1160,50 +1163,64 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
 
         <div style="background:rgba(61,184,113,0.06);border:1px solid rgba(61,184,113,0.3);border-radius:4px;padding:1.1rem 1.25rem;margin-bottom:1.5rem;">
           <div class="adm-label" style="margin-bottom:0.4rem;">&#128197; Assign Duty Time &amp; Contact</div>
-          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">Private admin info only — never shown on the public website. Pick a team member, add their phone, and set exactly when their shift runs. Save it, then hit Send whenever you're ready to text them.</div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">Private admin info only — never shown on the public website. Save each person's phone, email, nationality and location once — shift times are set separately below, since two people share each shift.</div>
           <select class="adm-select" id="teamDutyMemberSel" style="margin-bottom:0.6rem;"><option value="">-- Choose a Team Member --</option></select>
           <input type="tel" class="pm-inp" id="teamDutyPhone" placeholder="Phone Number (e.g. 024 123 4567)" style="margin-bottom:0.6rem;"/>
           <input type="email" class="pm-inp" id="teamDutyEmail" placeholder="Email" style="margin-bottom:0.6rem;"/>
-          <div style="display:flex;gap:0.6rem;margin-bottom:0.6rem;">
+          <div style="display:flex;gap:0.6rem;margin-bottom:0.75rem;">
             <input type="text" class="pm-inp" id="teamDutyNationality" placeholder="Nationality" style="flex:1;"/>
             <input type="text" class="pm-inp" id="teamDutyLocation" placeholder="Location / City" style="flex:1;"/>
           </div>
+          <button class="pm-btn" style="background:rgba(255,255,255,0.08);width:auto;padding:11px 22px;" onclick="saveTeamContactOnly()">&#43; Save Contact Only</button>
+          <div class="pm-err" id="teamDutyErr">Please choose a team member and enter a phone number.</div>
+          <div class="adm-success" id="teamDutySuccess">&#10003; Saved!</div>
+        </div>
+
+        <div style="background:rgba(46,233,255,0.06);border:1px solid rgba(46,233,255,0.3);border-radius:4px;padding:1.1rem 1.25rem;margin-bottom:1.5rem;">
+          <div class="adm-label" style="margin-bottom:0.4rem;">&#128101; Assign a Shift (Main + Co-)</div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">Since two people work each shift together, pick a role, the main person, and their co- partner (optional) — both get this same date/time. Editing an existing shift's time updates it for both people at once.</div>
+          <select class="adm-select" id="shiftRoleSel" style="margin-bottom:0.6rem;">
+            <option value="witness">Witness</option>
+            <option value="timekeeper">Timekeeper</option>
+          </select>
+          <div style="display:flex;gap:0.6rem;margin-bottom:0.6rem;">
+            <select class="adm-select" id="shiftMainSel" style="flex:1;"><option value="">-- Main Person --</option></select>
+            <select class="adm-select" id="shiftCoSel" style="flex:1;"><option value="">-- Co- Person (optional) --</option></select>
+          </div>
           <div class="adm-label" style="font-size:0.78rem;margin-bottom:0.35rem;color:var(--muted);">Date</div>
-          <input type="date" class="pm-inp" id="teamDutyDate" style="margin-bottom:0.6rem;"/>
+          <input type="date" class="pm-inp" id="shiftDate" style="margin-bottom:0.6rem;"/>
           <div style="display:flex;gap:0.6rem;margin-bottom:0.75rem;">
             <div style="flex:1;">
               <div class="adm-label" style="font-size:0.78rem;margin-bottom:0.35rem;color:var(--muted);">Start Time</div>
-              <input type="time" class="pm-inp" id="teamDutyStart"/>
+              <input type="time" class="pm-inp" id="shiftStart"/>
             </div>
             <div style="flex:1;">
               <div class="adm-label" style="font-size:0.78rem;margin-bottom:0.35rem;color:var(--muted);">End Time</div>
-              <input type="time" class="pm-inp" id="teamDutyEnd"/>
+              <input type="time" class="pm-inp" id="shiftEnd"/>
             </div>
           </div>
-          <div style="display:flex;gap:0.6rem;flex-wrap:wrap;">
-            <button class="pm-btn" style="background:rgba(255,255,255,0.08);width:auto;padding:11px 22px;" onclick="saveTeamContactOnly()">&#43; Save Contact Only</button>
-            <button class="pm-btn" style="background:#3DB871;border-color:#3DB871;width:auto;padding:11px 22px;" onclick="saveTeamDutyOnly()">&#43; Save Duty Only</button>
-          </div>
-          <div class="pm-err" id="teamDutyErr">Please choose a team member and set a date, start, and end time.</div>
-          <div class="adm-success" id="teamDutySuccess">&#10003; Saved!</div>
+          <button class="pm-btn gold" style="width:auto;padding:11px 24px;" onclick="saveDutyShift()">&#43; Save Shift</button>
+          <button class="pm-btn" id="cancelShiftEditBtn" style="display:none;background:rgba(255,255,255,0.08);width:auto;padding:11px 20px;margin-left:8px;" onclick="cancelShiftEdit()">Cancel Edit</button>
+          <div class="pm-err" id="shiftErr">Please pick a role, a main person, and a valid date/start/end.</div>
+          <div class="adm-success" id="shiftSuccess">&#10003; Shift saved!</div>
         </div>
 
         <div style="background:rgba(155,89,255,0.06);border:1px solid rgba(155,89,255,0.25);border-radius:4px;padding:1.1rem 1.25rem;margin-bottom:1.5rem;">
           <div class="adm-label" style="margin-bottom:0.4rem;">&#128172; Duty Reminder Message</div>
-          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">Use <code>{name}</code>, <code>{date}</code>, <code>{time}</code>, and <code>{role}</code> — each team member gets their own version filled in automatically.</div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">Use <code>{name}</code>, <code>{date}</code>, <code>{time}</code>, and <code>{role}</code> — each person gets their own version, with {role} automatically showing "Witness"/"Co-Witness" or "Timekeeper"/"Co-Timekeeper".</div>
           <textarea class="pm-inp" id="teamTemplateText" rows="4" placeholder="e.g. Hi {name}, reminder that your {role} shift is on {date} from {time}. Please arrive a little early. Thanks for being part of the team!" style="width:100%;resize:vertical;margin-bottom:0.6rem;"></textarea>
           <button class="pm-btn" style="background:#9B59FF;border-color:#9B59FF;width:auto;padding:9px 20px;font-size:0.8rem;" onclick="saveTeamTemplate()">&#128190; Save Message</button>
           <span id="teamTemplateSaved" style="display:none;color:#7FE0A8;font-size:0.75rem;margin-left:8px;">&#10003; Saved</span>
           <div style="margin-top:0.9rem;padding-top:0.9rem;border-top:1px solid rgba(255,255,255,0.1);">
-            <button class="pm-btn gold" style="width:auto;padding:11px 24px;" onclick="sendAllTeamReminders()">&#128172; Send to All With a Saved Duty</button>
-            <div style="font-size:0.7rem;color:var(--muted);margin-top:6px;">Skips anyone already sent — safe to click again later for newly-added members.</div>
+            <button class="pm-btn gold" style="width:auto;padding:11px 24px;" onclick="sendAllTeamReminders()">&#128172; Send to All With a Saved Shift</button>
+            <div style="font-size:0.7rem;color:var(--muted);margin-top:6px;">Skips anyone already sent — safe to click again later for newly-added shifts.</div>
           </div>
           <div id="teamBulkStatus" style="font-size:0.78rem;margin-top:8px;"></div>
         </div>
 
         <div style="background:rgba(46,233,255,0.06);border:1px solid rgba(46,233,255,0.3);border-radius:4px;padding:1.1rem 1.25rem;margin-bottom:1.5rem;">
-          <div class="adm-label" style="margin-bottom:0.4rem;">&#128100; How the Witness Form Auto-Fill Works Now</div>
-          <div style="font-size:0.78rem;color:var(--muted);">No setup needed here — whoever's filling in the Witness Statement just picks their own name from a dropdown on the form itself, and their saved phone/email/nationality (from "Assign Duty Time &amp; Contact" above) fills in instantly. They still type their own date and shift time, since that changes every time. Make sure everyone who'll be a witness has their contact info saved above first.</div>
+          <div class="adm-label" style="margin-bottom:0.4rem;">&#128100; How the Witness/Timekeeper Auto-Fill Works Now</div>
+          <div style="font-size:0.78rem;color:var(--muted);">No extra setup needed here — whoever's filling in the Witness or Timekeeper Statement just picks their own name from a dropdown on the form itself, and their saved phone/email/nationality fills in instantly. Their shift date/time also auto-fills, pulled from whichever shift (main or co-) they're assigned to above.</div>
         </div>
 
         <div style="background:rgba(155,89,255,0.06);border:1px solid rgba(155,89,255,0.3);border-radius:4px;padding:1.1rem 1.25rem;margin-bottom:1.5rem;">
@@ -1261,11 +1278,12 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
 
         <div style="background:rgba(212,175,55,0.06);border:1px solid rgba(212,175,55,0.3);border-radius:4px;padding:1.1rem 1.25rem;margin-bottom:1.5rem;">
           <div class="adm-label" style="margin-bottom:0.4rem;">&#128204; Steward Statement Defaults</div>
-          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">Fill these in once — they auto-fill every time the form opens. "When were you present" auto-fills too, from that person's saved duty date/start/end. Their role description and participant counts stay blank for them to fill in each time.</div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">Kept here for you to maintain, even though the Steward Statement is currently hidden from Event Forms. Fill in once — auto-fills instantly if you re-enable the form later.</div>
           <div style="display:flex;gap:0.6rem;margin-bottom:0.6rem;">
             <input type="text" class="pm-inp" id="stRecordTitle" placeholder="Record Title" style="flex:1;"/>
             <input type="text" class="pm-inp" id="stAppRef" placeholder="Application Reference Number" style="flex:1;"/>
           </div>
+          <input type="text" class="pm-inp" id="stOrganisation" placeholder="Organisation" style="margin-bottom:0.6rem;"/>
           <div style="display:flex;gap:0.6rem;margin-bottom:0.6rem;">
             <input type="text" class="pm-inp" id="stCity" placeholder="City" style="flex:1;"/>
             <input type="text" class="pm-inp" id="stCountry" placeholder="Country" style="flex:1;"/>
@@ -2109,6 +2127,35 @@ function downloadQuestionsPDF(){
 
   doc.save(name.replace(/[^a-z0-9]/gi,'_').toLowerCase()+'-interview-questions.pdf');
 }
+function downloadQuestionsPPTX(){
+  const name = document.getElementById('qGuestName').textContent;
+  const role = document.getElementById('qGuestRole').textContent;
+  const qs = (DB.questions||[]).filter(q=>q.guest===name);
+  if(!qs.length){ alert('There are no questions to download yet for this guest.'); return; }
+  const pptx = new PptxGenJS();
+  pptx.defineLayout({ name:'NATVIBE', width:10, height:5.63 });
+  pptx.layout='NATVIBE';
+  const MAROON='0E3A6E', GOLD='FFC857', WHITE='FFFFFF', MUTED='9DB8DC', DARK='040B18';
+
+  // Title slide
+  const title=pptx.addSlide();
+  title.background={ color:DARK };
+  title.addText('NAT-VIBE STUDIO', { x:0.6, y:1.7, w:8.8, h:0.7, fontSize:32, bold:true, color:GOLD, fontFace:'Arial' });
+  title.addText('Longest Interview Marathon — Interview Questions', { x:0.6, y:2.35, w:8.8, h:0.5, fontSize:14, color:MUTED, fontFace:'Arial' });
+  title.addText(name, { x:0.6, y:3.1, w:8.8, h:0.6, fontSize:26, bold:true, color:WHITE, fontFace:'Arial' });
+  if(role){ title.addText(role, { x:0.6, y:3.65, w:8.8, h:0.4, fontSize:16, color:GOLD, fontFace:'Arial' }); }
+
+  // One slide per question
+  qs.forEach((q,i)=>{
+    const slide=pptx.addSlide();
+    slide.background={ color:DARK };
+    slide.addText('Question '+(i+1), { x:0.6, y:0.5, w:8.8, h:0.5, fontSize:18, bold:true, color:GOLD, fontFace:'Arial' });
+    slide.addText(q.text, { x:0.6, y:1.3, w:8.8, h:3.6, fontSize:24, color:WHITE, fontFace:'Arial', valign:'top', wrap:true });
+    slide.addText(name+(role?' — '+role:''), { x:0.6, y:5.05, w:8.8, h:0.4, fontSize:11, color:MUTED, fontFace:'Arial' });
+  });
+
+  pptx.writeFile({ fileName: name.replace(/[^a-z0-9]/gi,'_').toLowerCase()+'-interview-questions.pptx' });
+}
 function populateAdmSelects(){
   const s=document.getElementById('admGuestSel');
   const f=document.getElementById('admFilter');
@@ -2400,7 +2447,7 @@ function switchAdmTab(id){
   if(id==='adm-media'){renderAdminGallery();renderAdminVideos();}
   if(id==='adm-cfg'){renderAdminApplications();}
   if(id==='adm-site'){loadSiteContentFields();renderAdminMediaPartners();renderAdminSponsors();}
-  if(id==='adm-team'){renderAdminTeam();populateDutiesRoleSelect();populateTeamDutyMemberSelect();renderTeamDutyRoster();renderTeamContactsOnly();renderChecklistQList();document.getElementById('teamTemplateText').value=(DB.smsSettings && DB.smsSettings.teamTemplate)||'';const wd=DB.witnessDefaults||{};document.getElementById('wdRecordTitle').value=wd.recordTitle||'';document.getElementById('wdAppRef').value=wd.appRef||'';document.getElementById('wdOrganisation').value=wd.organisation||'';document.getElementById('wdVenue').value=wd.venue||'';document.getElementById('wdCity').value=wd.city||'';document.getElementById('wdCountry').value=wd.country||'';document.getElementById('wdFinalMeasurement').value=wd.finalMeasurement||'';document.getElementById('wdExpertise').value=wd.expertise||'';const tk=DB.timekeeperDefaults||{};document.getElementById('tkRecordTitle').value=tk.recordTitle||'';document.getElementById('tkAppRef').value=tk.appRef||'';document.getElementById('tkOrganisation').value=tk.organisation||'';document.getElementById('tkVenue').value=tk.venue||'';document.getElementById('tkCity').value=tk.city||'';document.getElementById('tkCountry').value=tk.country||'';document.getElementById('tkFinalMeasurement').value=tk.finalMeasurement||'';document.getElementById('tkExpertise').value=tk.expertise||'';const st=DB.stewardDefaults||{};document.getElementById('stRecordTitle').value=st.recordTitle||'';document.getElementById('stAppRef').value=st.appRef||'';document.getElementById('stCity').value=st.city||'';document.getElementById('stCountry').value=st.country||'';document.getElementById('stRegion').value=st.region||'';}
+  if(id==='adm-team'){renderAdminTeam();populateDutiesRoleSelect();populateTeamDutyMemberSelect();renderTeamDutyRoster();renderTeamContactsOnly();renderChecklistQList();document.getElementById('teamTemplateText').value=(DB.smsSettings && DB.smsSettings.teamTemplate)||'';const wd=DB.witnessDefaults||{};document.getElementById('wdRecordTitle').value=wd.recordTitle||'';document.getElementById('wdAppRef').value=wd.appRef||'';document.getElementById('wdOrganisation').value=wd.organisation||'';document.getElementById('wdVenue').value=wd.venue||'';document.getElementById('wdCity').value=wd.city||'';document.getElementById('wdCountry').value=wd.country||'';document.getElementById('wdFinalMeasurement').value=wd.finalMeasurement||'';document.getElementById('wdExpertise').value=wd.expertise||'';const tk=DB.timekeeperDefaults||{};document.getElementById('tkRecordTitle').value=tk.recordTitle||'';document.getElementById('tkAppRef').value=tk.appRef||'';document.getElementById('tkOrganisation').value=tk.organisation||'';document.getElementById('tkVenue').value=tk.venue||'';document.getElementById('tkCity').value=tk.city||'';document.getElementById('tkCountry').value=tk.country||'';document.getElementById('tkFinalMeasurement').value=tk.finalMeasurement||'';document.getElementById('tkExpertise').value=tk.expertise||'';const st=DB.stewardDefaults||{};document.getElementById('stRecordTitle').value=st.recordTitle||'';document.getElementById('stAppRef').value=st.appRef||'';document.getElementById('stOrganisation').value=st.organisation||'';document.getElementById('stCity').value=st.city||'';document.getElementById('stCountry').value=st.country||'';document.getElementById('stRegion').value=st.region||'';}
   if(id==='adm-checkin'){renderAdminCheckins();}
 }
 function updateAdmStats(){
@@ -3111,14 +3158,20 @@ function renderAdminSchedules(){
       ? '<span style="color:#7FE0A8;font-size:0.65rem;">&#9989; Reminder sent</span>'
       : (hasContact ? '<span style="color:#FFC857;font-size:0.65rem;">&#9203; Reminder not sent yet</span>' : '<span style="color:var(--muted);font-size:0.65rem;">No contact saved</span>');
     const sendBtn = hasContact ? `<button class="adm-del" style="background:rgba(61,184,113,0.2);color:#7FE0A8;" onclick="sendOneInterviewReminder('${n.replace(/'/g,"\\'")}')">&#128172; ${s.reminderSent?'Resend':'Send'}</button>` : '';
-    const checkbox = hasContact ? `<input type="checkbox" class="sched-select-cb" value="${n.replace(/"/g,'&quot;')}" onchange="updateSchedSelectedCount()" style="width:17px;height:17px;flex-shrink:0;margin-right:10px;"/>` : `<span style="width:17px;display:inline-block;margin-right:10px;"></span>`;
-    return `<div class="adm-q-item"><div style="display:flex;align-items:flex-start;">${checkbox}<div><div class="adm-q-txt" style="font-weight:700;">${i+1}. ${n}</div><div class="adm-q-gst">&#128197; ${timeStr}</div><div style="margin-top:2px;">${reminderBadge}</div></div></div><div style="display:flex;gap:6px;flex-wrap:wrap;">${sendBtn}<button class="adm-del" style="background:rgba(46,233,255,0.2);color:#7FE0A8;" onclick="openEditGuestTime('${n.replace(/'/g,"\\'")}')">&#9203; Edit Time</button><button class="adm-del" style="background:rgba(155,89,255,0.2);color:#C9A8FF;" onclick="openSwapGuest('${n.replace(/'/g,"\\'")}')">&#128260; Swap</button><button class="adm-del" onclick="removeSchedule('${n.replace(/'/g,"\\'")}')">&#128465; Remove</button></div></div>`;
+    const checkbox = hasContact ? `<input type="checkbox" class="sched-select-cb" data-sent="${s.reminderSent?'1':'0'}" value="${n.replace(/"/g,'&quot;')}" onchange="updateSchedSelectedCount()" style="width:17px;height:17px;flex-shrink:0;margin-right:10px;"/>` : `<span style="width:17px;display:inline-block;margin-right:10px;"></span>`;
+    return `<div class="adm-q-item" style="${s.reminderSent?'opacity:0.6;':''}"><div style="display:flex;align-items:flex-start;">${checkbox}<div><div class="adm-q-txt" style="font-weight:700;">${i+1}. ${n}</div><div class="adm-q-gst">&#128197; ${timeStr}</div><div style="margin-top:2px;">${reminderBadge}</div></div></div><div style="display:flex;gap:6px;flex-wrap:wrap;">${sendBtn}<button class="adm-del" style="background:rgba(46,233,255,0.2);color:#7FE0A8;" onclick="openEditGuestTime('${n.replace(/'/g,"\\'")}')">&#9203; Edit Time</button><button class="adm-del" style="background:rgba(155,89,255,0.2);color:#C9A8FF;" onclick="openSwapGuest('${n.replace(/'/g,"\\'")}')">&#128260; Swap</button><button class="adm-del" onclick="removeSchedule('${n.replace(/'/g,"\\'")}')">&#128465; Remove</button></div></div>`;
   }).join('');
   updateSchedSelectedCount();
 }
 function toggleSelectAllSched(){
   const master=document.getElementById('schedSelectAll').checked;
-  document.querySelectorAll('.sched-select-cb').forEach(cb=>cb.checked=master);
+  document.querySelectorAll('.sched-select-cb').forEach(cb=>{
+    // Select All only grabs guests who haven't been sent yet, so you can't
+    // accidentally double-send everyone with one click. Already-sent guests
+    // can still be ticked manually if you really do want to resend.
+    if(master && cb.dataset.sent==='1') return;
+    cb.checked=master;
+  });
   updateSchedSelectedCount();
 }
 function updateSchedSelectedCount(){
@@ -3129,8 +3182,14 @@ function updateSchedSelectedCount(){
   if(btn) btn.disabled = count===0;
 }
 async function sendSelectedInterviewReminders(){
-  const selected=Array.from(document.querySelectorAll('.sched-select-cb:checked')).map(cb=>cb.value);
+  const checked=Array.from(document.querySelectorAll('.sched-select-cb:checked'));
+  const selected=checked.map(cb=>cb.value);
   if(!selected.length){ alert('Tick at least one guest first.'); return; }
+  const alreadySent=checked.filter(cb=>cb.dataset.sent==='1').map(cb=>cb.value);
+  if(alreadySent.length){
+    const proceed=confirm(`${alreadySent.length} of your selected guest(s) already received this reminder: ${alreadySent.join(', ')}.\n\nSend to them again anyway?`);
+    if(!proceed) return;
+  }
   const tpl=(DB.smsSettings && DB.smsSettings.interviewTemplate) || '';
   if(!tpl.trim()){ alert('Set your Interview Reminder message template first.'); return; }
   const statusEl=document.getElementById('bulkReminderStatus');
@@ -4345,6 +4404,7 @@ async function saveStewardDefaults(){
   DB.stewardDefaults={
     recordTitle: document.getElementById('stRecordTitle').value.trim(),
     appRef: document.getElementById('stAppRef').value.trim(),
+    organisation: document.getElementById('stOrganisation').value.trim(),
     city: document.getElementById('stCity').value.trim(),
     country: document.getElementById('stCountry').value.trim(),
     region: document.getElementById('stRegion').value.trim()
@@ -4744,11 +4804,10 @@ function openFormsHub(){
 function closeFormsHub(){
   document.getElementById('formsHubOverlay').classList.remove('open');
 }
-const FH_STAGE_IDS=['fh-menu-stage','fh-steward','fh-witness','fh-timekeeper','fh-cover','fh-logbook','fh-qtracker'];
+const FH_STAGE_IDS=['fh-menu-stage','fh-witness','fh-timekeeper','fh-cover','fh-logbook','fh-qtracker'];
 async function fhShowStage(id){
   FH_STAGE_IDS.forEach(s=>document.getElementById(s).style.display='none');
   document.getElementById(id).style.display='block';
-  if(id==='fh-steward'){ renderGenericFormFields('steward', STEWARD_FIELDS); document.getElementById('fh-steward-err').style.display='none'; document.getElementById('fh-steward-success').style.display='none'; document.getElementById('stewardSummaryBox').style.display='none'; autoFillStewardDefaults(); }
   if(id==='fh-witness'){ renderGenericFormFields('witness', WITNESS_FIELDS); document.getElementById('fh-witness-err').style.display='none'; document.getElementById('fh-witness-success').style.display='none'; document.getElementById('witnessSummaryBox').style.display='none'; autoFillWitnessDefaults(); renderWitnessChecklistForm(); }
   if(id==='fh-timekeeper'){ renderGenericFormFields('timekeeper', TIMEKEEPER_FIELDS); document.getElementById('fh-timekeeper-err').style.display='none'; document.getElementById('fh-timekeeper-success').style.display='none'; document.getElementById('timekeeperSummaryBox').style.display='none'; autoFillTimekeeperDefaults(); }
   if(id==='fh-cover'){ renderGenericFormFields('cover', COVER_FIELDS); document.getElementById('fh-cover-err').style.display='none'; document.getElementById('fh-cover-success').style.display='none'; }
@@ -5261,7 +5320,6 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closePortal();});
       <h3 style="color:var(--gold);">&#128203; Choose a Form</h3>
       <div class="bm-guest">Pick the form you need to fill in. Once submitted, a signed PDF copy is sent straight to the admin's Telegram.</div>
       <div style="display:flex;flex-direction:column;gap:10px;margin-top:1rem;">
-        <button class="pm-btn" style="background:#FFC857;border-color:#FFC857;color:#1A0308;" onclick="fhShowStage('fh-steward')">&#128221; Steward Statement</button>
         <button class="pm-btn" style="background:#FFC857;border-color:#FFC857;color:#1A0308;" onclick="fhShowStage('fh-witness')">&#128065; Witness Statement</button>
         <button class="pm-btn" style="background:#FFC857;border-color:#FFC857;color:#1A0308;" onclick="fhShowStage('fh-timekeeper')">&#9200; Time Keeper Statement</button>
         <button class="pm-btn" style="background:#FFC857;border-color:#FFC857;color:#1A0308;" onclick="fhShowStage('fh-cover')">&#128196; Cover Letter</button>
@@ -5271,25 +5329,6 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closePortal();});
     </div>
 
     <!-- STEWARD -->
-    <div id="fh-steward" style="display:none;">
-      <a onclick="fhBackToMenu()" style="color:var(--muted);font-size:0.78rem;cursor:pointer;display:inline-block;margin-bottom:0.8rem;">&#8592; Back to Forms Menu</a>
-      <h3 style="color:var(--gold);">&#128221; Steward Statement</h3>
-      <div style="background:rgba(46,233,255,0.08);border:1px solid rgba(46,233,255,0.3);border-radius:4px;padding:0.8rem;margin-bottom:0.9rem;">
-        <label style="display:block;font-size:0.72rem;color:var(--muted);margin-bottom:6px;">Who's filling this in?</label>
-        <select class="tr-select" id="steward-whoAmI" onchange="fillStewardIdentity(this.value)" style="width:100%;">
-          <option value="">-- Select Your Name --</option>
-        </select>
-      </div>
-      <div id="fh-steward-fields"></div>
-      <button class="pm-btn" style="background:#FFC857;border-color:#FFC857;color:#1A0308;margin-top:0.6rem;" onclick="submitStewardForm()">Submit &amp; Send PDF</button>
-      <div class="pm-err" id="fh-steward-err">Please fill in your name and signature at least.</div>
-      <div class="bm-success" id="fh-steward-success">&#10003; Submitted! A PDF copy has been sent to the admin.</div>
-      <div id="stewardSummaryBox" style="display:none;background:rgba(46,233,255,0.08);border:1px solid rgba(46,233,255,0.3);border-radius:4px;padding:1rem;margin-top:1rem;">
-        <div style="font-size:0.72rem;color:#7FE0A8;font-weight:700;margin-bottom:0.5rem;">&#128203; AUTO-GENERATED SUMMARY — copy this wherever you're asked what you did:</div>
-        <div id="stewardSummaryText" style="font-size:0.85rem;white-space:pre-line;line-height:1.6;margin-bottom:0.75rem;"></div>
-        <button class="pm-btn" style="background:rgba(255,255,255,0.1);width:auto;padding:9px 20px;font-size:0.8rem;" onclick="copyStewardSummary()">&#128203; Copy Summary</button>
-      </div>
-    </div>
 
     <!-- WITNESS -->
     <div id="fh-witness" style="display:none;">
@@ -5383,5 +5422,6 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closePortal();});
   </div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
 </body>
 </html>
