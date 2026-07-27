@@ -5,10 +5,18 @@
 // the visitor's device only ever needs to do a simple same-site request to
 // this endpoint, which carriers don't interfere with.
 //
-// UPDATE: also retries automatically with a short backoff if JSONBin replies
-// "429 Too Many Requests" (its free-tier rate limit), and staggers the 5
-// parallel bin requests slightly instead of firing them all in the same
-// instant, so normal usage is much less likely to trip that limit at all.
+// UPDATE: retries automatically with a short backoff if JSONBin replies
+// "429 Too Many Requests", and staggers the 5 parallel bin requests slightly
+// instead of firing them all in the same instant.
+//
+// UPDATE 2: the retry delays were too generous — in a worst case they could
+// add up to close to Vercel's serverless function time limit, causing Vercel
+// to kill the function outright. When that happens, visitors see a raw
+// "Failed to fetch" error instead of a clean message, and NOTHING loads (not
+// just one field) even though nothing is actually wrong with their data.
+// Fixed by (a) shortening the retry delays, and (b) adding a hard overall
+// deadline so this function ALWAYS returns a proper response well within
+// Vercel's limit, even if JSONBin is still struggling.
 
 const MASTER_KEY = "$2a$10$VM15AZotifF2wcXou8VdceFnUd7te9hDc3wHD1gD8IPtKR8PGVHqm";
 const MASTER_KEY_2 = "$2a$10$fEi2jZ47VxnreDHYK/N0p.EaCtczgFdc30kBdb.VwVp3mYRkZ8GCu";
@@ -34,17 +42,28 @@ function questionShard(guestName) {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-// Retries a request up to 4 extra times ONLY when JSONBin returns 429
-// (rate limited), waiting a bit longer each time. Any other error fails
-// immediately, same as before.
+// Races a promise against a hard deadline so this function can never be
+// killed mid-flight by Vercel's own timeout — it always returns a clean,
+// parseable response instead.
+function withDeadline(promise, ms, message) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+// Retries a request up to 2 extra times ONLY when JSONBin returns 429
+// (rate limited), waiting a bit longer each time. Kept short on purpose —
+// see UPDATE 2 above.
 async function withRetry(doRequest, label) {
-  const maxRetries = 4;
+  const maxRetries = 2;
   let attempt = 0;
   while (true) {
     const result = await doRequest();
     if (result.status !== 429) return result;
     if (attempt >= maxRetries) return result; // give up, let caller report the failure
-    const delay = 600 * Math.pow(2, attempt) + Math.floor(Math.random() * 250); // ~600ms,1.2s,2.4s,4.8s + jitter
+    const delay = 350 * Math.pow(2, attempt) + Math.floor(Math.random() * 150); // ~350ms, 700ms + jitter
     console.warn(label + ": got 429, retrying in " + delay + "ms (attempt " + (attempt + 1) + "/" + maxRetries + ")");
     await sleep(delay);
     attempt++;
@@ -97,13 +116,13 @@ module.exports = async (req, res) => {
 
   try {
     if (req.method === "GET") {
-      const [core, q1, q2, q3, extra] = await runStaggered([
+      const [core, q1, q2, q3, extra] = await withDeadline(runStaggered([
         () => fetchBin(BIN_URL, MASTER_KEY, "core"),
         () => fetchBin(QUESTIONS_BIN_URL, MASTER_KEY, "questions shard 1"),
         () => fetchBin(QUESTIONS_BIN_URL_2, MASTER_KEY_2, "questions shard 2"),
         () => fetchBin(QUESTIONS_BIN_URL_3, MASTER_KEY_2, "questions shard 3"),
         () => fetchBin(EXTRA_BIN_URL, MASTER_KEY, "extra")
-      ]);
+      ]), 8000, "Loading is taking too long right now — please try again in a moment.");
       const allQuestions = [].concat(q1.questions || [], q2.questions || [], q3.questions || []);
       const merged = Object.assign({}, core, extra);
       merged.questions = allQuestions;
@@ -138,13 +157,13 @@ module.exports = async (req, res) => {
       };
 
       const failures = [];
-      await runStaggered([
+      await withDeadline(runStaggered([
         () => putBin(BIN_URL, core, MASTER_KEY, "core", failures),
         () => putBin(QUESTIONS_BIN_URL, { questions: shard1 }, MASTER_KEY, "questions shard 1", failures),
         () => putBin(QUESTIONS_BIN_URL_2, { questions: shard2 }, MASTER_KEY_2, "questions shard 2", failures),
         () => putBin(QUESTIONS_BIN_URL_3, { questions: shard3 }, MASTER_KEY_2, "questions shard 3", failures),
         () => putBin(EXTRA_BIN_URL, extra, MASTER_KEY, "extra", failures)
-      ]);
+      ]), 8000, "Saving is taking too long right now — please try again in a moment.");
 
       if (failures.length) {
         res.status(200).json({ ok: false, failures });
@@ -159,3 +178,4 @@ module.exports = async (req, res) => {
     res.status(500).json({ ok: false, error: e.message });
   }
 };
+
