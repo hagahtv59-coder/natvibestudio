@@ -18,14 +18,14 @@
 // deadline so this function ALWAYS returns a proper response well within
 // Vercel's limit, even if JSONBin is still struggling.
 
-const MASTER_KEY = "$2a$10$VM15AZotifF2wcXou8VdceFnUd7te9hDc3wHD1gD8IPtKR8PGVHqm";
+const MASTER_KEY = "$2a$10$7Y5kxkKCMdpSLAn9.KHaZehOSe.2GT60pjtxP17Ayz0tftOSUZm.6";
 const MASTER_KEY_2 = "$2a$10$fEi2jZ47VxnreDHYK/N0p.EaCtczgFdc30kBdb.VwVp3mYRkZ8GCu";
 
-const BIN_ID = "6a1e28f2f5f4af5e29aaa3d8";
-const QUESTIONS_BIN_ID = "6a445305f5f4af5e294a4c2e";
+const BIN_ID = "6a679bcfda38895dfe979cd1";
+const QUESTIONS_BIN_ID = "6a679a93da38895dfe97969e";
 const QUESTIONS_BIN_ID_2 = "6a420c3af5f4af5e293fdacc";
 const QUESTIONS_BIN_ID_3 = "6a470e39f5f4af5e295738df";
-const EXTRA_BIN_ID = "6a445241da38895dfe18b9f2";
+const EXTRA_BIN_ID = "6a679ab6f5f4af5e29c911fc";
 
 const BIN_URL = "https://api.jsonbin.io/v3/b/" + BIN_ID;
 const QUESTIONS_BIN_URL = "https://api.jsonbin.io/v3/b/" + QUESTIONS_BIN_ID;
@@ -178,4 +178,3 @@ module.exports = async (req, res) => {
     res.status(500).json({ ok: false, error: e.message });
   }
 };
-
