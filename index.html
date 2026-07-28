@@ -7,14 +7,26 @@
   <div style="max-width: 480px; width: 100%; text-align: center;">
     <img src="postponed-announcement.png" alt="Official Announcement: Postponed"
       style="width: 100%; border-radius: 16px; box-shadow: 0 0 40px rgba(0,255,100,0.3);">
-    <button onclick="document.getElementById('postponedOverlay').style.display='none'; document.body.style.overflow='auto';"
-      style="
-        margin-top: 20px; padding: 12px 28px; font-size: 16px; font-weight: bold;
-        background: #7CFC00; color: #000; border: none; border-radius: 8px;
-        cursor: pointer;
-      ">
-      I Understand — Continue to Site
-    </button>
+    
+    <div style="display: flex; gap: 10px; justify-content: center; margin-top: 20px; flex-wrap: wrap;">
+      <button onclick="document.getElementById('postponedOverlay').style.display='none'; document.body.style.overflow='auto';"
+        style="
+          padding: 12px 28px; font-size: 16px; font-weight: bold;
+          background: #7CFC00; color: #000; border: none; border-radius: 8px;
+          cursor: pointer;
+        ">
+        I Understand — Continue to Site
+      </button>
+
+      <button onclick="document.getElementById('postponedOverlay').style.display='none'; document.body.style.overflow='auto'; document.getElementById('adminLoginBtn') ? document.getElementById('adminLoginBtn').click() : window.location.hash='#admin';"
+        style="
+          padding: 12px 28px; font-size: 16px; font-weight: bold;
+          background: transparent; color: #7CFC00; border: 2px solid #7CFC00; border-radius: 8px;
+          cursor: pointer;
+        ">
+        🔒 Admin Login
+      </button>
+    </div>
   </div>
 </div>
 
