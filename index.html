@@ -1,23 +1,23 @@
-<div id="smsNotifyBox" style="
-  position: fixed; bottom: 20px; right: 20px; max-width: 320px;
-  background: #111; border: 1px solid #7CFC00; border-radius: 14px;
-  padding: 16px; z-index: 999998; box-shadow: 0 4px 20px rgba(0,255,100,0.25);
-  font-family: sans-serif; animation: slideIn 0.4s ease-out;
+<div id="postponedOverlay" style="
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.92); z-index: 999999;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px; overflow-y: auto;
 ">
-  <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
-    <div style="width:10px; height:10px; background:#7CFC00; border-radius:50%;"></div>
-    <strong style="color:#7CFC00; font-size:14px;">NAT-VIBE STUDIO</strong>
-    <span onclick="document.getElementById('smsNotifyBox').style.display='none';"
-      style="margin-left:auto; cursor:pointer; color:#888; font-size:18px; line-height:1;">&times;</span>
+  <div style="max-width: 480px; width: 100%; text-align: center;">
+    <img src="postponed-announcement.png" alt="Official Announcement: Postponed"
+      style="width: 100%; border-radius: 16px; box-shadow: 0 0 40px rgba(0,255,100,0.3);">
+    <button onclick="document.getElementById('postponedOverlay').style.display='none'; document.body.style.overflow='auto';"
+      style="
+        margin-top: 20px; padding: 12px 28px; font-size: 16px; font-weight: bold;
+        background: #7CFC00; color: #000; border: none; border-radius: 8px;
+        cursor: pointer;
+      ">
+      I Understand — Continue to Site
+    </button>
   </div>
-  <p style="color:#eee; font-size:13px; line-height:1.5; margin:0;">
-    NAT-VIBE STUDIO: GWR Interview Marathon postponed to 14th-16th Aug 2026. Sorry for the inconvenience. Thanks for your support! More details soon.
-  </p>
 </div>
 
-<style>
-  @keyframes slideIn {
-    from { transform: translateY(30px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
-  }
-</style>
+<script>
+  document.body.style.overflow = 'hidden';
+</script>
