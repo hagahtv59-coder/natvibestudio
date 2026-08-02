@@ -310,7 +310,7 @@ footer{background:#0D0105;padding:3.5rem 3rem 1.5rem;border-top:2px solid var(--
       <div class="cdu"><div class="cdn" id="secs">--</div><div class="cdl">Seconds</div></div>
     </div>
     <div class="info-pills">
-      <span class="ipill">&#128197; August 14&ndash;16, 2026</span>
+      <span class="ipill">&#128197; July 29&ndash;31, 2026</span>
       <span class="ipill">&#128205; Takoradi Mall, Ghana</span>
       <span class="ipill">&#9201; 72+ Hours</span>
       <span class="ipill">&#128101; 144&ndash;160 Guests</span>
@@ -565,7 +565,7 @@ footer{background:#0D0105;padding:3.5rem 3rem 1.5rem;border-top:2px solid var(--
 </footer>
 
 <script>
-const target=new Date('2026-08-14T08:00:00');
+const target=new Date('2026-07-29T08:00:00');
 function tick(){
   const diff=target-new Date();
   if(diff<=0){['days','hours','mins','secs'].forEach(id=>document.getElementById(id).textContent='00');return;}
@@ -876,9 +876,10 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
 
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;flex-wrap:wrap;gap:0.6rem;">
           <div class="adm-label" style="margin-bottom:0;">All Guest Contacts (Spreadsheet)</div>
-          <div style="display:flex;gap:0.5rem;">
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
             <button class="pm-btn" style="width:auto;padding:8px 18px;font-size:0.75rem;background:rgba(255,255,255,0.08);" onclick="copyAllContactNumbers()">&#128203; Copy All Numbers</button>
-            <button class="pm-btn gold" style="width:auto;padding:8px 18px;font-size:0.75rem;" onclick="downloadContactsCSV()">&#11015; Download Spreadsheet (CSV)</button>
+            <button class="pm-btn" style="width:auto;padding:8px 18px;font-size:0.75rem;background:rgba(255,255,255,0.08);" onclick="downloadContactsCSV()">&#11015; Download Spreadsheet (CSV)</button>
+            <button class="pm-btn gold" style="width:auto;padding:8px 18px;font-size:0.75rem;" onclick="downloadContactsPDF()">&#11015; Download as PDF</button>
           </div>
         </div>
         <div style="overflow-x:auto;border:1px solid rgba(212,175,55,0.2);border-radius:4px;">
@@ -887,6 +888,7 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
               <tr style="background:rgba(212,175,55,0.1);text-align:left;">
                 <th style="padding:10px 12px;">#</th>
                 <th style="padding:10px 12px;">Guest Name</th>
+                <th style="padding:10px 12px;">Role/Title</th>
                 <th style="padding:10px 12px;">Contact</th>
                 <th style="padding:10px 12px;">Location</th>
                 <th style="padding:10px 12px;"></th>
@@ -3574,14 +3576,16 @@ function renderGuestContactsTable(){
   const contacts=DB.guestContacts||{};
   const names=Object.keys(contacts).filter(n=>contacts[n] && contacts[n].contact);
   if(!names.length){
-    body.innerHTML='<tr><td colspan="5" style="padding:1.5rem;text-align:center;color:var(--muted);font-size:0.85rem;">No guest contacts saved yet.</td></tr>';
+    body.innerHTML='<tr><td colspan="6" style="padding:1.5rem;text-align:center;color:var(--muted);font-size:0.85rem;">No guest contacts saved yet.</td></tr>';
     return;
   }
   body.innerHTML=names.map((n,i)=>{
     const c=contacts[n];
+    const role=getGuestRole(n);
     return `<tr style="border-top:1px solid rgba(255,255,255,0.08);">
       <td style="padding:9px 12px;color:var(--muted);">${i+1}</td>
       <td style="padding:9px 12px;font-weight:600;">${n}</td>
+      <td style="padding:9px 12px;">${role||''}</td>
       <td style="padding:9px 12px;">${c.contact||''}</td>
       <td style="padding:9px 12px;">${c.location||''}</td>
       <td style="padding:9px 12px;text-align:right;white-space:nowrap;"><button class="adm-del" style="background:rgba(61,184,113,0.2);color:#7FE0A8;margin-right:4px;" onclick="resendGuestSms('${n.replace(/'/g,"\\'")}','${(c.contact||'').replace(/'/g,"\\'")}')">&#128172; Resend SMS</button><button class="adm-del" onclick="removeGuestContact('${n.replace(/'/g,"\\'")}')">&#128465;</button></td>
@@ -3604,10 +3608,10 @@ function downloadContactsCSV(){
   const names=Object.keys(contacts).filter(n=>contacts[n] && contacts[n].contact);
   if(!names.length){alert('No contacts saved yet.');return;}
   const escCsv=v=>'"'+String(v||'').replace(/"/g,'""')+'"';
-  let csv='Guest Name,Contact,Location\n';
+  let csv='Guest Name,Role/Title,Contact,Location\n';
   names.forEach(n=>{
     const c=contacts[n];
-    csv+=[escCsv(n),escCsv(c.contact),escCsv(c.location)].join(',')+'\n';
+    csv+=[escCsv(n),escCsv(getGuestRole(n)),escCsv(c.contact),escCsv(c.location)].join(',')+'\n';
   });
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
   const url=URL.createObjectURL(blob);
@@ -3615,6 +3619,51 @@ function downloadContactsCSV(){
   a.href=url; a.download='natvibe-guest-contacts.csv';
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+function downloadContactsPDF(){
+  const contacts=DB.guestContacts||{};
+  const names=Object.keys(contacts).filter(n=>contacts[n] && contacts[n].contact);
+  if(!names.length){alert('No contacts saved yet.');return;}
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'pt', format:'a4'});
+  const margin=40, pageWidth=doc.internal.pageSize.getWidth(), pageHeight=doc.internal.pageSize.getHeight();
+  let y=60;
+  doc.setFont('helvetica','bold'); doc.setFontSize(18);
+  doc.text('NAT-VIBE STUDIO — Guest Contacts', margin, y);
+  y+=22;
+  doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(120);
+  doc.text('Generated '+new Date().toLocaleString(), margin, y);
+  doc.setTextColor(0);
+  y+=24;
+
+  const colX = { num:margin, name:margin+30, role:margin+180, contact:margin+330, location:margin+430 };
+  function drawHeader(){
+    doc.setFont('helvetica','bold'); doc.setFontSize(10);
+    doc.text('#', colX.num, y);
+    doc.text('Guest Name', colX.name, y);
+    doc.text('Role/Title', colX.role, y);
+    doc.text('Contact', colX.contact, y);
+    doc.text('Location', colX.location, y);
+    y+=8;
+    doc.setDrawColor(180);
+    doc.line(margin, y, pageWidth-margin, y);
+    y+=16;
+    doc.setFont('helvetica','normal');
+  }
+  drawHeader();
+  names.forEach((n,i)=>{
+    if(y > pageHeight-50){ doc.addPage(); y=60; drawHeader(); }
+    const c=contacts[n];
+    doc.setFontSize(9.5);
+    doc.text(String(i+1), colX.num, y);
+    doc.text(String(n).substring(0,24), colX.name, y);
+    doc.text(String(getGuestRole(n)||'—').substring(0,22), colX.role, y);
+    doc.text(String(c.contact||'—'), colX.contact, y);
+    doc.text(String(c.location||'—').substring(0,18), colX.location, y);
+    y+=18;
+  });
+
+  doc.save('natvibe-guest-contacts.pdf');
 }
 
 /* ===== GALLERY & VIDEOS ===== */
