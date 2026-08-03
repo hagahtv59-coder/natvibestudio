@@ -889,6 +889,7 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
                 <th style="padding:10px 12px;">#</th>
                 <th style="padding:10px 12px;">Guest Name</th>
                 <th style="padding:10px 12px;">Role/Title</th>
+                <th style="padding:10px 12px;">Scheduled Time</th>
                 <th style="padding:10px 12px;">Contact</th>
                 <th style="padding:10px 12px;">Location</th>
                 <th style="padding:10px 12px;"></th>
@@ -3694,10 +3695,13 @@ function renderGuestContactsTable(){
   body.innerHTML=names.map((n,i)=>{
     const c=contacts[n];
     const role=getGuestRole(n);
+    const sched=(DB.schedules||{})[n];
+    const schedText=sched&&(sched.date||sched.time)?scheduledTimeText(n):'—';
     return `<tr style="border-top:1px solid rgba(255,255,255,0.08);">
       <td style="padding:9px 12px;color:var(--muted);">${i+1}</td>
       <td style="padding:9px 12px;font-weight:600;">${n}</td>
       <td style="padding:9px 12px;">${role||''}</td>
+      <td style="padding:9px 12px;">${schedText}</td>
       <td style="padding:9px 12px;">${c.contact||''}</td>
       <td style="padding:9px 12px;">${c.location||''}</td>
       <td style="padding:9px 12px;text-align:right;white-space:nowrap;"><button class="adm-del" style="background:rgba(61,184,113,0.2);color:#7FE0A8;margin-right:4px;" onclick="resendGuestSms('${n.replace(/'/g,"\\'")}','${(c.contact||'').replace(/'/g,"\\'")}')">&#128172; Resend SMS</button><button class="adm-del" onclick="removeGuestContact('${n.replace(/'/g,"\\'")}')">&#128465;</button></td>
@@ -3720,10 +3724,12 @@ function downloadContactsCSV(){
   const names=Object.keys(contacts).filter(n=>contacts[n] && contacts[n].contact);
   if(!names.length){alert('No contacts saved yet.');return;}
   const escCsv=v=>'"'+String(v||'').replace(/"/g,'""')+'"';
-  let csv='Guest Name,Role/Title,Contact,Location\n';
+  let csv='Guest Name,Role/Title,Scheduled Time,Contact,Location\n';
   names.forEach(n=>{
     const c=contacts[n];
-    csv+=[escCsv(n),escCsv(getGuestRole(n)),escCsv(c.contact),escCsv(c.location)].join(',')+'\n';
+    const sched=(DB.schedules||{})[n];
+    const schedText=sched&&(sched.date||sched.time)?scheduledTimeText(n):'';
+    csv+=[escCsv(n),escCsv(getGuestRole(n)),escCsv(schedText),escCsv(c.contact),escCsv(c.location)].join(',')+'\n';
   });
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
   const url=URL.createObjectURL(blob);
@@ -3737,7 +3743,7 @@ function downloadContactsPDF(){
   const names=Object.keys(contacts).filter(n=>contacts[n] && contacts[n].contact);
   if(!names.length){alert('No contacts saved yet.');return;}
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({unit:'pt', format:'a4'});
+  const doc = new jsPDF({unit:'pt', format:'a4', orientation:'landscape'});
   const margin=40, pageWidth=doc.internal.pageSize.getWidth(), pageHeight=doc.internal.pageSize.getHeight();
   let y=60;
   doc.setFont('helvetica','bold'); doc.setFontSize(18);
@@ -3748,12 +3754,13 @@ function downloadContactsPDF(){
   doc.setTextColor(0);
   y+=24;
 
-  const colX = { num:margin, name:margin+30, role:margin+180, contact:margin+330, location:margin+430 };
+  const colX = { num:margin, name:margin+30, role:margin+170, sched:margin+300, contact:margin+540, location:margin+660 };
   function drawHeader(){
     doc.setFont('helvetica','bold'); doc.setFontSize(10);
     doc.text('#', colX.num, y);
     doc.text('Guest Name', colX.name, y);
     doc.text('Role/Title', colX.role, y);
+    doc.text('Scheduled Time', colX.sched, y);
     doc.text('Contact', colX.contact, y);
     doc.text('Location', colX.location, y);
     y+=8;
@@ -3766,10 +3773,13 @@ function downloadContactsPDF(){
   names.forEach((n,i)=>{
     if(y > pageHeight-50){ doc.addPage(); y=60; drawHeader(); }
     const c=contacts[n];
+    const sched=(DB.schedules||{})[n];
+    const schedText=sched&&(sched.date||sched.time)?scheduledTimeText(n):'—';
     doc.setFontSize(9.5);
     doc.text(String(i+1), colX.num, y);
-    doc.text(String(n).substring(0,24), colX.name, y);
+    doc.text(String(n).substring(0,26), colX.name, y);
     doc.text(String(getGuestRole(n)||'—').substring(0,22), colX.role, y);
+    doc.text(String(schedText).substring(0,34), colX.sched, y);
     doc.text(String(c.contact||'—'), colX.contact, y);
     doc.text(String(c.location||'—').substring(0,18), colX.location, y);
     y+=18;
