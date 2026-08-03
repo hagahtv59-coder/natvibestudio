@@ -977,6 +977,15 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
           </div>
           <div id="shiftScheduleStatus" style="font-size:0.78rem;margin-top:8px;"></div>
         </div>
+
+        <div style="background:rgba(155,89,255,0.06);border:1px solid rgba(155,89,255,0.3);border-radius:4px;padding:1.1rem 1.25rem;margin-bottom:1.5rem;">
+          <div class="adm-label" style="margin-bottom:0.4rem;">&#127922; Auto-Schedule Remaining Guests (Mixed Lengths)</div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">Automatically schedules every guest who doesn't have a time yet, chaining them one after another with no gaps — picking a random length for each guest from the set below, instead of everyone getting the same length. They can then use "Confirm Your Time" on their card to confirm or ask for a change.</div>
+          <div class="adm-label" style="font-size:0.78rem;margin-bottom:0.35rem;color:var(--muted);">Possible lengths (minutes, comma-separated)</div>
+          <input type="text" class="pm-inp" id="autoSchedDurations" value="20,30,40,60" style="margin-bottom:0.75rem;"/>
+          <button class="pm-btn" style="background:#9B59FF;border-color:#9B59FF;width:auto;padding:11px 24px;" onclick="autoScheduleRemainingGuests()">&#127922; Auto-Schedule Remaining Guests Now</button>
+          <div id="autoSchedStatus" style="font-size:0.78rem;margin-top:8px;"></div>
+        </div>
         <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(212,175,55,0.2);padding:1.25rem;border-radius:4px;margin-bottom:1.5rem;">
           <div class="adm-label" style="margin-bottom:0.75rem;">Set Interview Schedule</div>
           <select class="adm-select" id="schedGuestSel"><option value="">-- Choose a Guest --</option></select>
@@ -3082,6 +3091,34 @@ async function shiftEntireSchedule(){
   document.getElementById('shiftHours').value='';
   statusEl.style.color='#7FE0A8';
   statusEl.textContent=`✓ Done. All ${names.length} guest(s) shifted ${Math.abs(hours)} hour(s) ${direction}.`;
+}
+async function autoScheduleRemainingGuests(){
+  const raw=document.getElementById('autoSchedDurations').value.trim();
+  const durations=raw.split(',').map(s=>parseInt(s.trim())).filter(n=>n>0);
+  if(!durations.length){ alert('Enter at least one valid length in minutes, e.g. 20,30,40,60'); return; }
+  await loadDB();
+  const scheduled=new Set(Object.keys(DB.schedules||{}).filter(n=>DB.schedules[n] && (DB.schedules[n].date||DB.schedules[n].time)));
+  const remaining=allGuestNames().filter(n=>!scheduled.has(n));
+  if(!remaining.length){ alert('Everyone already has a schedule — nothing to auto-schedule.'); return; }
+  if(!confirm(`This will schedule all ${remaining.length} unscheduled guest(s) back-to-back, each getting a random length from: ${durations.join(', ')} minutes. Continue?`)) return;
+  const statusEl=document.getElementById('autoSchedStatus');
+  statusEl.style.color='var(--muted)'; statusEl.textContent='Scheduling...';
+  if(!DB.schedules) DB.schedules={};
+  let next=computeNextScheduleSlot();
+  remaining.forEach(name=>{
+    const duration=durations[Math.floor(Math.random()*durations.length)];
+    const startDt=new Date(next.date+'T'+next.start+':00');
+    const endDt=new Date(startDt.getTime()+duration*60000);
+    const crossesMidnight = localDateStr(endDt)!==localDateStr(startDt);
+    DB.schedules[name]={date:next.date, start:next.start, end:localTimeStr(endDt), endDate:localDateStr(endDt), crossesMidnight};
+    next={date:localDateStr(endDt), start:localTimeStr(endDt), end:''};
+  });
+  await saveDB();
+  renderAdminSchedules();
+  refreshAllGuestSchedules();
+  populateScheduleSelect();
+  statusEl.style.color='#7FE0A8';
+  statusEl.textContent=`✓ Done. ${remaining.length} guest(s) auto-scheduled with mixed lengths (${durations.join(', ')} min). They can now confirm their time from their card.`;
 }
 function computeNextScheduleSlot(){
   const duration=getDefaultDuration();
