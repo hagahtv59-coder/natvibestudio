@@ -565,7 +565,7 @@ footer{background:#0D0105;padding:3.5rem 3rem 1.5rem;border-top:2px solid var(--
 </footer>
 
 <script>
-const target=new Date('2026-08-14T06:00:00');
+const target=new Date('2026-08-14T00:00:00');
 function tick(){
   const diff=target-new Date();
   if(diff<=0){['days','hours','mins','secs'].forEach(id=>document.getElementById(id).textContent='00');return;}
@@ -963,6 +963,19 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>{
           <div id="retimeRulesList" style="margin-bottom:0.75rem;"></div>
           <button class="pm-btn gold" style="width:auto;padding:11px 24px;" onclick="applyBulkRetime()">&#9654; Apply Rules &amp; Re-Chain Schedule Now</button>
           <div id="retimeStatus" style="font-size:0.78rem;margin-top:8px;"></div>
+        </div>
+
+        <div style="background:rgba(255,90,90,0.06);border:1px solid rgba(255,90,90,0.3);border-radius:4px;padding:1.1rem 1.25rem;margin-bottom:1.5rem;">
+          <div class="adm-label" style="margin-bottom:0.4rem;">&#8646; Shift Entire Schedule (Event Start Time Changed)</div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.75rem;">Use this when the whole event's start time moves — e.g. from 6:00 AM to 12:00 AM. Every scheduled guest shifts by the same amount, in the same order, keeping their own lengths exactly as they are. Use a negative number to move everyone earlier, positive to move later.</div>
+          <div style="display:flex;gap:0.6rem;align-items:flex-end;flex-wrap:wrap;">
+            <div>
+              <div class="adm-label" style="font-size:0.78rem;margin-bottom:0.35rem;color:var(--muted);">Shift by (hours)</div>
+              <input type="number" step="0.5" class="pm-inp" id="shiftHours" style="width:110px;" placeholder="-6"/>
+            </div>
+            <button class="pm-btn" style="background:#FF5A5A;border-color:#FF5A5A;width:auto;padding:11px 24px;" onclick="shiftEntireSchedule()">&#8646; Shift Everyone Now</button>
+          </div>
+          <div id="shiftScheduleStatus" style="font-size:0.78rem;margin-top:8px;"></div>
         </div>
         <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(212,175,55,0.2);padding:1.25rem;border-radius:4px;margin-bottom:1.5rem;">
           <div class="adm-label" style="margin-bottom:0.75rem;">Set Interview Schedule</div>
@@ -2711,7 +2724,7 @@ function scheduleHTML(name){
   return '<div class="g-sched loading"><span class="dot"></span> Schedule: To Be Announced</div>';
 }
 function bookBtnHTML(name){
-  return '<button class="g-book-btn" onclick="openBooking(\''+name.replace(/'/g,"\\'")+'\')">&#128197; Book This Guest</button>';
+  return '<button class="g-book-btn" onclick="openBooking(\''+name.replace(/'/g,"\\'")+'\')">&#9989; Confirm Your Time</button>';
 }
 function enhanceStaticGuestCards(){
   document.querySelectorAll('#guests .gg:not(#dynamicGuestsGrid) .g-card').forEach(card=>{
@@ -2725,26 +2738,55 @@ function enhanceStaticGuestCards(){
     card.dataset.enhanced='1';
   });
 }
+function scheduledTimeText(name){
+  const sch=(DB.schedules||{})[name];
+  if(!sch || (!sch.date && !sch.time)) return 'Schedule: To Be Announced';
+  const parts=[];
+  if(sch.date) parts.push(fmtSchedDate(sch.date));
+  if(sch.start){
+    parts.push(sch.end ? (fmtSchedTime(sch.start)+' - '+fmtSchedTime(sch.end)+(sch.crossesMidnight?' (next day)':'')) : fmtSchedTime(sch.start));
+  } else if(sch.time){
+    parts.push(sch.time);
+  }
+  return parts.join(' • ');
+}
 function openBooking(name){
   document.getElementById('bookGuestName').textContent=name;
-  document.getElementById('bookerName').value='';
-  document.getElementById('bookerContact').value='';
+  document.getElementById('confirmTimeDisplay').textContent='📅 '+scheduledTimeText(name);
+  document.getElementById('preferredTimeInput').value='';
+  document.getElementById('confirmTimeStep1').style.display='block';
+  document.getElementById('confirmTimeStep2').style.display='none';
   document.getElementById('bookSuccess').style.display='none';
   document.getElementById('bookingOverlay').classList.add('open');
 }
 function closeBooking(){
   document.getElementById('bookingOverlay').classList.remove('open');
 }
-async function submitBooking(){
+function confirmTimeShowNo(){
+  document.getElementById('confirmTimeStep1').style.display='none';
+  document.getElementById('confirmTimeStep2').style.display='block';
+}
+async function confirmTimeYes(){
   const guest=document.getElementById('bookGuestName').textContent;
-  const name=document.getElementById('bookerName').value.trim();
-  const contact=document.getElementById('bookerContact').value.trim();
-  if(!name||!contact){alert('Please enter your name and contact.');return;}
+  const timeText=scheduledTimeText(guest);
   const btn=event.target; btn.disabled=true; const orig=btn.textContent; btn.textContent='Sending...';
-  await sendTG('📩 NAT-VIBE STUDIO — NEW BOOKING\n\n🎙 Guest: '+guest+'\n👤 Booked by: '+name+'\n📞 Contact: '+contact+'\n📅 '+new Date().toLocaleString());
+  await sendTG('✅ NAT-VIBE STUDIO — TIME CONFIRMED\n\n🎙 Guest: '+guest+'\n📅 Scheduled: '+timeText+'\n👍 They confirmed this time works for them.\n🕐 '+new Date().toLocaleString());
+  document.getElementById('confirmTimeStep1').style.display='none';
   document.getElementById('bookSuccess').style.display='block';
   btn.disabled=false; btn.textContent=orig;
-  setTimeout(()=>closeBooking(),2000);
+  setTimeout(()=>closeBooking(),2200);
+}
+async function confirmTimeSubmitNo(){
+  const guest=document.getElementById('bookGuestName').textContent;
+  const timeText=scheduledTimeText(guest);
+  const preferred=document.getElementById('preferredTimeInput').value.trim();
+  if(!preferred){ alert('Please type your preferred time.'); return; }
+  const btn=event.target; btn.disabled=true; const orig=btn.textContent; btn.textContent='Sending...';
+  await sendTG('⚠️ NAT-VIBE STUDIO — DIFFERENT TIME REQUESTED\n\n🎙 Guest: '+guest+'\n📅 Currently scheduled: '+timeText+'\n💬 Their preferred time: '+preferred+'\n🕐 '+new Date().toLocaleString());
+  document.getElementById('confirmTimeStep2').style.display='none';
+  document.getElementById('bookSuccess').style.display='block';
+  btn.disabled=false; btn.textContent=orig;
+  setTimeout(()=>closeBooking(),2200);
 }
 
 /* ===== GUEST CHECK-IN LOG BOOK (QR CODE + PASSWORD) ===== */
@@ -3008,14 +3050,47 @@ async function applyBulkRetime(){
   statusEl.style.color='#7FE0A8';
   statusEl.textContent=`✓ Done. ${changedCount} guest(s) had their duration changed; the full schedule of ${names.length} was re-chained to match.`;
 }
+async function shiftEntireSchedule(){
+  const hours=parseFloat(document.getElementById('shiftHours').value);
+  if(isNaN(hours) || hours===0){ alert('Enter how many hours to shift by (e.g. -6 to move everyone 6 hours earlier).'); return; }
+  await loadDB();
+  const scheds=DB.schedules||{};
+  const names=Object.keys(scheds).filter(n=>scheds[n] && scheds[n].date && scheds[n].start && scheds[n].end);
+  if(!names.length){ alert('No guests are scheduled yet.'); return; }
+  const ms=hours*3600000;
+  const direction = hours<0 ? 'earlier' : 'later';
+  if(!confirm(`This will shift all ${names.length} scheduled guests ${Math.abs(hours)} hour(s) ${direction}, keeping their order and lengths exactly the same. Consider downloading a backup first. Continue?`)) return;
+  const statusEl=document.getElementById('shiftScheduleStatus');
+  statusEl.style.color='var(--muted)'; statusEl.textContent='Shifting...';
+  names.forEach(name=>{
+    const s=scheds[name];
+    const startDt=new Date(s.date+'T'+s.start+':00');
+    const endBaseDate = s.endDate || s.date;
+    const endDt=new Date(endBaseDate+'T'+s.end+':00');
+    const newStartDt=new Date(startDt.getTime()+ms);
+    const newEndDt=new Date(endDt.getTime()+ms);
+    s.date=localDateStr(newStartDt);
+    s.start=localTimeStr(newStartDt);
+    s.end=localTimeStr(newEndDt);
+    s.endDate=localDateStr(newEndDt);
+    s.crossesMidnight = s.endDate!==s.date;
+  });
+  await saveDB();
+  renderAdminSchedules();
+  refreshAllGuestSchedules();
+  populateScheduleSelect();
+  document.getElementById('shiftHours').value='';
+  statusEl.style.color='#7FE0A8';
+  statusEl.textContent=`✓ Done. All ${names.length} guest(s) shifted ${Math.abs(hours)} hour(s) ${direction}.`;
+}
 function computeNextScheduleSlot(){
   const duration=getDefaultDuration();
   const scheds=Object.values(DB.schedules||{}).filter(s=>s && s.date && s.end && /^\d{2}:\d{2}$/.test(s.end));
   if(!scheds.length){
     const today=new Date();
     const dateStr=localDateStr(today);
-    const endDt=new Date(dateStr+'T06:00:00'); endDt.setMinutes(endDt.getMinutes()+duration);
-    return {date:dateStr, start:'06:00', end:localTimeStr(endDt)};
+    const endDt=new Date(dateStr+'T00:00:00'); endDt.setMinutes(endDt.getMinutes()+duration);
+    return {date:dateStr, start:'00:00', end:localTimeStr(endDt)};
   }
   let latestTime=-Infinity;
   scheds.forEach(s=>{
@@ -5308,12 +5383,22 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closePortal();});
 <!-- BOOKING MODAL -->
 <div class="site-popup-overlay" id="bookingOverlay" onclick="if(event.target===this)closeBooking()">
   <div class="book-modal-box">
-    <h3>&#128197; Book This Guest</h3>
-    <div class="bm-guest">You are booking an interview slot with <strong id="bookGuestName"></strong></div>
-    <input type="text" class="pm-inp" id="bookerName" placeholder="Your Full Name"/>
-    <input type="text" class="pm-inp" id="bookerContact" placeholder="Your Phone / WhatsApp / Email"/>
-    <button class="pm-btn gold" onclick="submitBooking()">Submit Booking Request</button>
-    <div class="bm-success" id="bookSuccess">&#10003; Booking request sent! We'll contact you soon.</div>
+    <h3>&#9989; Confirm Your Time</h3>
+    <div class="bm-guest">Hi <strong id="bookGuestName"></strong>, your scheduled interview time is:</div>
+    <div id="confirmTimeDisplay" style="background:rgba(255,200,87,0.08);border:1px solid rgba(255,200,87,0.3);border-radius:4px;padding:0.7rem 0.9rem;margin-bottom:1.2rem;font-size:0.95rem;font-weight:700;color:var(--gold);"></div>
+    <div id="confirmTimeStep1">
+      <div class="bm-guest" style="margin-bottom:0.9rem;">Can you make it at this time?</div>
+      <div style="display:flex;gap:0.7rem;">
+        <button class="pm-btn" style="background:#3DB871;border-color:#3DB871;" onclick="confirmTimeYes()">&#9989; Yes, I'll be there</button>
+        <button class="pm-btn" style="background:transparent;border:1px solid rgba(255,90,90,0.4);color:#FF8A8A;" onclick="confirmTimeShowNo()">&#10060; No, I need a different time</button>
+      </div>
+    </div>
+    <div id="confirmTimeStep2" style="display:none;">
+      <div class="bm-guest" style="margin-bottom:0.6rem;">What time would work better for you?</div>
+      <input type="text" class="pm-inp" id="preferredTimeInput" placeholder="e.g. I can only do August 15, morning"/>
+      <button class="pm-btn gold" onclick="confirmTimeSubmitNo()">Submit My Preferred Time</button>
+    </div>
+    <div class="bm-success" id="bookSuccess">&#10003; Thanks! We've let the team know.</div>
     <div style="text-align:center;margin-top:1rem;"><a onclick="closeBooking()" style="color:var(--muted);font-size:0.78rem;cursor:pointer;">Cancel</a></div>
   </div>
 </div>
