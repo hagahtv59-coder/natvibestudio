@@ -2652,7 +2652,7 @@ function renderRemovedGuests(){
 }
 function applyHiddenGuests(){
   const hidden=new Set(DB.hiddenGuests||[]);
-  document.querySelectorAll('#guests .gg:not(#dynamicGuestsGrid) .g-card').forEach(card=>{
+  document.querySelectorAll('#guests .g-card').forEach(card=>{
     const nameEl=card.querySelector('.g-name');
     if(!nameEl) return;
     const name=nameEl.textContent.trim();
